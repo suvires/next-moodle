@@ -1,26 +1,284 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07111f;
+  --foreground: #eff5ff;
+  --surface: rgba(11, 20, 35, 0.78);
+  --surface-strong: rgba(15, 26, 45, 0.94);
+  --surface-soft: rgba(255, 255, 255, 0.04);
+  --paper: rgba(11, 20, 35, 0.88);
+  --ink: #f8fbff;
+  --accent: #ff8a3d;
+  --accent-soft: #ffbf90;
+  --accent-cool: #66d7ff;
+  --line: rgba(150, 185, 255, 0.14);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --muted: #94a6c9;
+  --danger: #ff7c7c;
+  --shadow: 0 30px 120px rgba(0, 6, 18, 0.46);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-display: "Avenir Next", "Avenir Next Condensed", "Arial Narrow", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 138, 61, 0.16), transparent 22%),
+    radial-gradient(circle at 88% 10%, rgba(102, 215, 255, 0.14), transparent 20%),
+    radial-gradient(circle at 50% 100%, rgba(17, 31, 54, 0.8), transparent 36%),
+    linear-gradient(180deg, #0a1525 0%, #07111f 44%, #050c17 100%);
 }
 
 body {
-  background: var(--background);
+  min-height: 100%;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.08), transparent 18%),
+    linear-gradient(180deg, rgba(11, 19, 32, 0.84), rgba(4, 10, 19, 0.96));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  color: #08111f;
+  background: rgba(255, 191, 144, 0.88);
+}
+
+.surface-card {
+  background:
+    linear-gradient(180deg, rgba(15, 26, 45, 0.96), rgba(9, 17, 31, 0.92)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 45%);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(28px);
+}
+
+.grain-overlay {
+  position: relative;
+  isolation: isolate;
+}
+
+.grain-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(102, 215, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(102, 215, 255, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 100%);
+  opacity: 0.4;
+}
+
+.grain-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0.7px, transparent 0.7px);
+  background-size: 13px 13px;
+  mix-blend-mode: soft-light;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.display-face {
+  font-family: "Avenir Next", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(18px);
+  opacity: 0.95;
+  z-index: -1;
+}
+
+.ambient-orb-blue {
+  background: radial-gradient(circle, rgba(102, 215, 255, 0.26) 0%, rgba(102, 215, 255, 0.05) 58%, transparent 78%);
+}
+
+.ambient-orb-white {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.04) 54%, transparent 76%);
+}
+
+.app-grid {
+  position: relative;
+}
+
+.app-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  pointer-events: none;
+}
+
+.topbar-panel {
+  background:
+    linear-gradient(180deg, rgba(10, 18, 32, 0.92), rgba(10, 18, 32, 0.78)),
+    linear-gradient(120deg, rgba(255, 138, 61, 0.05), rgba(102, 215, 255, 0.04));
+  backdrop-filter: blur(26px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 22px 80px rgba(0, 6, 18, 0.32);
+}
+
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 138, 61, 0.18), transparent 28%),
+    radial-gradient(circle at 0% 100%, rgba(102, 215, 255, 0.18), transparent 26%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(102, 215, 255, 0.28), rgba(255, 138, 61, 0.24), transparent 86%);
+}
+
+.metric-chip {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+}
+
+.course-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.course-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(102, 215, 255, 0.4), rgba(255, 138, 61, 0.4), transparent 90%);
+}
+
+.course-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 34px 110px rgba(0, 6, 18, 0.48);
+}
+
+.rich-html {
+  color: inherit;
+}
+
+.rich-html > :first-child {
+  margin-top: 0;
+}
+
+.rich-html > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-html p,
+.rich-html ul,
+.rich-html ol,
+.rich-html blockquote,
+.rich-html figure,
+.rich-html table,
+.rich-html iframe,
+.rich-html video {
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.rich-html ul,
+.rich-html ol {
+  padding-left: 1.25rem;
+}
+
+.rich-html ul {
+  list-style: disc;
+}
+
+.rich-html ol {
+  list-style: decimal;
+}
+
+.rich-html a {
+  color: var(--accent-cool);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.rich-html img,
+.rich-html iframe,
+.rich-html video {
+  display: block;
+  max-width: 100%;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.rich-html table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rich-html th,
+.rich-html td {
+  border: 1px solid rgba(150, 185, 255, 0.12);
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rich-html th {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.rich-html blockquote {
+  border-left: 3px solid rgba(102, 215, 255, 0.32);
+  padding-left: 1rem;
+  color: var(--muted);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
