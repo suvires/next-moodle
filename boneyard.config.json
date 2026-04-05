@@ -1,0 +1,5 @@
+{
+  "out": "./app/bones/generated",
+  "breakpoints": [375, 768, 1280],
+  "wait": 800
+}

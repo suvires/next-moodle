@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { getMoodleSiteUrl, isAllowedMoodleUrl, resolveAbsoluteMoodleUrl } from "@/lib/moodle-media";
 
+
 // Raw shape returned by tool_mobile_get_public_config
 type RawMoodlePublicConfig = {
   sitename?: string;
@@ -107,8 +108,35 @@ const getMoodlePublicConfig = cache(async (): Promise<RawMoodlePublicConfig | nu
   return withToken;
 });
 
+async function fetchSiteFullName(): Promise<string | undefined> {
+  const token = process.env.MOODLE_API_TOKEN?.trim();
+  if (!token) return undefined;
+
+  try {
+    const response = await fetch(`${getMoodleSiteUrl()}/webservice/rest/server.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        wstoken: token,
+        wsfunction: "core_webservice_get_site_info",
+        moodlewsrestformat: "json",
+      }),
+      cache: "force-cache",
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return undefined;
+    const payload = await response.json().catch(() => null);
+    return payload?.sitename?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const getMoodleBranding = cache(async (): Promise<MoodleBranding> => {
-  const config = await getMoodlePublicConfig();
+  const [config, fullName] = await Promise.all([
+    getMoodlePublicConfig(),
+    fetchSiteFullName(),
+  ]);
 
   if (config) {
     const logoUrl = normalizeUrl(config.logourl || config.logo);
@@ -117,7 +145,7 @@ export const getMoodleBranding = cache(async (): Promise<MoodleBranding> => {
     );
 
     return {
-      siteName: config.sitename?.trim() || fallbackSiteName(),
+      siteName: fullName || config.sitename?.trim() || fallbackSiteName(),
       siteUrl: normalizeUrl(config.siteurl) || getMoodleSiteUrl(),
       logoUrl,
       compactLogoUrl,
@@ -125,7 +153,7 @@ export const getMoodleBranding = cache(async (): Promise<MoodleBranding> => {
   }
 
   return {
-    siteName: fallbackSiteName(),
+    siteName: fullName || fallbackSiteName(),
     siteUrl: getMoodleSiteUrl(),
     logoUrl: normalizeUrl("/favicon.ico"),
     compactLogoUrl: normalizeUrl("/favicon.ico"),

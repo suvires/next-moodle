@@ -5,7 +5,6 @@ import { useFormStatus } from "react-dom";
 import { requestPasswordResetAction } from "@/app/actions/auth";
 import { Button, LinkButton } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { Separator } from "@/app/components/ui/separator";
 
 const initialState = { error: null, success: false };
 
@@ -31,7 +30,7 @@ export function ForgotPasswordForm() {
         <p className="banner-info">
           Si existe esa cuenta, recibirás un correo de Moodle para restablecer tu contraseña.
         </p>
-        <LinkButton href="/" variant="ghost" size="sm" className="self-center">
+        <LinkButton href="/login" variant="ghost" size="sm" className="self-center">
           Volver al inicio de sesión
         </LinkButton>
       </div>
@@ -65,13 +64,6 @@ export function ForgotPasswordForm() {
         <SubmitButton />
       </div>
 
-      <Separator />
-
-      <p className="text-center">
-        <LinkButton href="/" variant="ghost" size="sm">
-          Volver al inicio de sesión
-        </LinkButton>
-      </p>
     </form>
   );
 }

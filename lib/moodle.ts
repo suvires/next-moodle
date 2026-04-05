@@ -1224,6 +1224,45 @@ export async function searchCoursesWithServerToken(query: string) {
   return searchCourses(getServerMoodleToken(), query);
 }
 
+async function getCategoryNames(token: string, categoryIds: number[]): Promise<Map<number, string>> {
+  if (categoryIds.length === 0) return new Map();
+  const params: Record<string, string> = { "addsubcategories": "0" };
+  categoryIds.forEach((id, i) => {
+    params[`criteria[${i}][key]`] = "id";
+    params[`criteria[${i}][value]`] = String(id);
+  });
+  type RawCategory = { id: number; name: string };
+  const result = await moodleRequest<{ categories?: RawCategory[] }>(
+    token,
+    "core_course_get_categories",
+    params
+  ).catch(() => null);
+  const map = new Map<number, string>();
+  for (const cat of result?.categories ?? []) {
+    map.set(cat.id, cat.name);
+  }
+  return map;
+}
+
+export async function getPublicCatalogCoursesWithServerToken(): Promise<MoodleCatalogCourse[]> {
+  const token = getServerMoodleToken();
+  const courses = await adminGetCourses(token);
+  const visible = courses.filter((course) => course.visible);
+
+  const categoryIds = [...new Set(visible.map((c) => c.categoryId).filter((id): id is number => id != null))];
+  const categoryNames = await getCategoryNames(token, categoryIds);
+
+  return visible
+    .map((course) => ({
+      id: course.id,
+      fullname: course.fullname,
+      summary: course.summary || undefined,
+      categoryName: (course.categoryId ? categoryNames.get(course.categoryId) : undefined) || course.categoryName || undefined,
+      enrolledUsersCount: course.enrolledUserCount ?? 0,
+    }))
+    .sort((a, b) => a.fullname.localeCompare(b.fullname, "es"));
+}
+
 export async function getForumsByCourses(token: string, courseIds: number[]) {
   if (courseIds.length === 0) {
     return [] as MoodleForum[];
@@ -5122,6 +5161,10 @@ export function isAuthenticationError(error: unknown) {
     code === "requireloginerror" ||
     code === "usernotfullyloggedin" ||
     message.includes("invalidtoken") ||
+    message.includes("token no valida") ||
+    message.includes("token no válida") ||
+    message.includes("ficha (token) no valida") ||
+    message.includes("ficha (token) no válida") ||
     message.includes("servicerequireslogin") ||
     message.includes("requireloginerror") ||
     message.includes("not fully logged in")

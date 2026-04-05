@@ -71,10 +71,6 @@
 
 /* ── Base ───────────────────────────────────────── */
 
-* {
-  box-sizing: border-box;
-}
-
 html {
   background: var(--background);
 }
@@ -88,7 +84,7 @@ body {
   background: var(--background);
 }
 
-a {
+a:not(.button):not(.link) {
   color: inherit;
   text-decoration: none;
 }
@@ -104,10 +100,6 @@ a {
   background: var(--surface);
   border-color: var(--line);
   box-shadow: var(--shadow-sm);
-}
-
-.text-balance {
-  text-wrap: balance;
 }
 
 .display-face {

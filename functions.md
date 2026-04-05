@@ -138,3 +138,4 @@ When a new Moodle service function is used:
 | `core_cohort_delete_cohort_members` | `adminRemoveCohortMember` | `lib/moodle.ts` |
 | `core_cohort_get_cohort_members` | `adminGetCohortMembers` | `lib/moodle.ts` |
 | `core_auth_request_password_reset` | `requestPasswordReset` | `lib/moodle.ts` |
+| `core_course_get_categories` | `getCategoryNames` | `lib/moodle.ts` |
