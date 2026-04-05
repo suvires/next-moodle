@@ -5,11 +5,12 @@ This file tracks each Moodle service function used in the codebase.
 When a new Moodle service function is used:
 - mention it explicitly to the user
 - add it to this file
+- if a function is not available in the current Moodle instance, mark it as `exclude-temp` in the `Sync` column until it is remapped or removed
 
 ## Current functions in use
 
-| Function | Internal wrapper | Location |
-| --- | --- | --- |
+| Function | Internal wrapper | Location | Sync |
+| --- | --- | --- | --- |
 | `core_webservice_get_site_info` | `authenticateWithMoodle` | `lib/moodle.ts` |
 | `core_webservice_get_site_info` | `getSiteInfo` | `lib/moodle.ts` |
 | `core_enrol_get_users_courses` | `getUserCourses` | `lib/moodle.ts` |
@@ -26,15 +27,22 @@ When a new Moodle service function is used:
 | `mod_forum_get_discussion_posts` | `getDiscussionPosts` | `lib/moodle.ts` |
 | `mod_forum_add_discussion` | `addForumDiscussion` | `lib/moodle.ts` |
 | `mod_forum_add_discussion_post` | `addForumReply` | `lib/moodle.ts` |
+| `mod_forum_set_lock_state` | `setForumDiscussionLockState` | `lib/moodle.ts` |
+| `mod_forum_set_pin_state` | `setForumDiscussionPinState` | `lib/moodle.ts` |
+| `mod_forum_delete_post` | `deleteForumPost` | `lib/moodle.ts` |
 | `core_course_get_contents` | `getCourseContents` | `lib/moodle.ts` |
 | `tool_mobile_get_public_config` | `fetchBrandingViaRest` | `lib/moodle-brand.ts` |
 | `core_completion_get_activities_completion_status` | `getActivitiesCompletionStatus` | `lib/moodle.ts` |
+| `core_completion_update_activity_completion_status_manually` | `updateActivityCompletionStatusManually` | `lib/moodle.ts` |
 | `gradereport_user_get_grade_items` | `getGradeItems` | `lib/moodle.ts` |
 | `gradereport_overview_get_course_grades` | `getCourseGrades` | `lib/moodle.ts` |
 | `core_calendar_get_calendar_upcoming_view` | `getUpcomingEvents` | `lib/moodle.ts` |
 | `core_calendar_get_calendar_monthly_view` | `getMonthlyView` | `lib/moodle.ts` |
 | `mod_assign_get_assignments` | `getAssignments` | `lib/moodle.ts` |
 | `mod_assign_get_submission_status` | `getSubmissionStatus` | `lib/moodle.ts` |
+| `mod_assign_get_submissions` | `getAssignmentSubmissions` | `lib/moodle.ts` |
+| `mod_assign_get_grades` | `getAssignmentGrades` | `lib/moodle.ts` |
+| `mod_assign_save_grades` | `saveAssignmentGrade` | `lib/moodle.ts` |
 | `core_message_get_conversations` | `getConversations` | `lib/moodle.ts` |
 | `core_message_get_conversation_messages` | `getConversationMessages` | `lib/moodle.ts` |
 | `core_message_send_instant_messages` | `sendMessage` | `lib/moodle.ts` |
@@ -54,9 +62,13 @@ When a new Moodle service function is used:
 | `mod_quiz_view_attempt_review` | `viewQuizAttemptReview` | `lib/moodle.ts` |
 | `mod_folder_get_folders_by_courses` | `getFoldersByCourses` | `lib/moodle.ts` |
 | `mod_page_get_pages_by_courses` | `getPagesByCourses` | `lib/moodle.ts` |
+| `mod_resource_view_resource` | `viewResource` | `lib/moodle.ts` |
+| `mod_url_view_url` | `viewUrl` | `lib/moodle.ts` |
+| `mod_forum_view_forum` | `viewForum` | `lib/moodle.ts` |
+| `mod_forum_view_forum_discussion` | `viewForumDiscussion` | `lib/moodle.ts` |
 | `core_badges_get_user_badges` | `getUserBadges` | `lib/moodle.ts` |
 | `core_competency_list_course_competencies` | `getCoursCompetencies` | `lib/moodle.ts` |
-| `core_competency_get_user_competency_in_course` | `getUserCompetencyInCourse` | `lib/moodle.ts` |
+| `tool_lp_data_for_user_competency_summary_in_course` | `getUserCompetencyInCourse` | `lib/moodle.ts` |
 | `core_blog_get_entries` | `getBlogEntries` | `lib/moodle.ts` |
 | `mod_book_get_books_by_courses` | `getBooksByCourses` | `lib/moodle.ts` |
 | `mod_glossary_get_glossaries_by_courses` | `getGlossariesByCourses` | `lib/moodle.ts` |
@@ -74,11 +86,19 @@ When a new Moodle service function is used:
 | `mod_data_get_entries` | `getDatabaseEntries` | `lib/moodle.ts` |
 | `mod_workshop_get_workshops_by_courses` | `getWorkshopsByCourses` | `lib/moodle.ts` |
 | `mod_workshop_get_submissions` | `getWorkshopSubmissions` | `lib/moodle.ts` |
-| `mod_chat_get_chats_by_courses` | `getChatsByCourses` | `lib/moodle.ts` |
 | `mod_lti_get_ltis_by_courses` | `getLtisByCourses` | `lib/moodle.ts` |
 | `mod_lti_get_tool_launch_data` | `getLtiLaunchData` | `lib/moodle.ts` |
-| `mod_h5p_get_h5pactivities_by_courses` | `getH5PActivitiesByCourses` | `lib/moodle.ts` |
-| `mod_h5p_get_h5pactivity_attempts` | `getH5PAttempts` | `lib/moodle.ts` |
+| `mod_scorm_view_scorm` | `viewScorm` | `lib/moodle.ts` |
+| `mod_scorm_get_scorm_access_information` | `getScormAccessInformation` | `lib/moodle.ts` |
+| `mod_scorm_get_scorm_scoes` | `getScormScoes` | `lib/moodle.ts` |
+| `mod_scorm_get_scorms_by_courses` | `getScormsByCourses` | `lib/moodle.ts` |
+| `mod_scorm_get_scorm_attempt_count` | `getScormAttemptCount` | `lib/moodle.ts` |
+| `mod_scorm_get_scorm_user_data` | `getScormUserData` | `lib/moodle.ts` |
+| `mod_scorm_get_scorm_sco_tracks` | `getScormScoTracks` | `lib/moodle.ts` |
+| `mod_scorm_launch_sco` | `launchScormSco` | `lib/moodle.ts` |
+| `mod_scorm_insert_scorm_tracks` | `insertScormTracks` | `lib/moodle.ts` |
+| `mod_h5pactivity_get_h5pactivities_by_courses` | `getH5PActivitiesByCourses` | `lib/moodle.ts` |
+| `mod_h5pactivity_get_attempts` | `getH5PAttempts` | `lib/moodle.ts` |
 | `core_notes_get_course_notes` | `getCourseNotes` | `lib/moodle.ts` |
 | `core_group_get_course_user_groups` | `getCourseUserGroups` | `lib/moodle.ts` |
 | `core_search_get_results` | `searchGlobal` | `lib/moodle.ts` |
@@ -96,9 +116,25 @@ When a new Moodle service function is used:
 | `core_user_update_picture` | `updateUserPicture` | `lib/moodle.ts` |
 | `mod_assign_save_submission` | `saveAssignmentSubmission` | `lib/moodle.ts` |
 | `core_course_get_updates_since` | `getCourseUpdatesSince` | `lib/moodle.ts` |
-| `message_popup_mark_all_notifications_as_read` | `markAllNotificationsAsRead` | `lib/moodle.ts` |
+| `core_message_mark_all_notifications_as_read` | `markAllNotificationsAsRead` | `lib/moodle.ts` |
 | `core_message_mark_message_read` | `markMessageRead` | `lib/moodle.ts` |
-| `mod_survey_get_surveys_by_courses` | `getSurveysByCourses` | `lib/moodle.ts` |
-| `mod_survey_get_questions` | `getSurveyQuestions` | `lib/moodle.ts` |
-| `core_message_get_contacts` | `getContacts` | `lib/moodle.ts` |
-| `core_message_create_contacts` | `addContact` | `lib/moodle.ts` |
+| `core_message_get_user_contacts` | `getContacts` | `lib/moodle.ts` |
+| `core_message_create_contact_request` | `addContact` | `lib/moodle.ts` |
+| `core_user_get_users` | `adminSearchUsers` | `lib/moodle.ts` |
+| `core_user_create_users` | `adminCreateUser` | `lib/moodle.ts` |
+| `core_user_update_users` | `adminUpdateUser` | `lib/moodle.ts` |
+| `core_user_delete_users` | `adminDeleteUser` | `lib/moodle.ts` |
+| `core_course_get_courses` | `adminGetCourses` | `lib/moodle.ts` |
+| `core_course_create_courses` | `adminCreateCourse` | `lib/moodle.ts` |
+| `core_course_update_courses` | `adminUpdateCourse` | `lib/moodle.ts` |
+| `core_course_delete_courses` | `adminDeleteCourse` | `lib/moodle.ts` |
+| `enrol_manual_enrol_users` | `adminEnrolUser` | `lib/moodle.ts` |
+| `enrol_manual_unenrol_users` | `adminUnenrolUser` | `lib/moodle.ts` |
+| `core_cohort_get_cohorts` | `adminGetCohorts` | `lib/moodle.ts` |
+| `core_cohort_create_cohorts` | `adminCreateCohort` | `lib/moodle.ts` |
+| `core_cohort_update_cohorts` | `adminUpdateCohort` | `lib/moodle.ts` |
+| `core_cohort_delete_cohorts` | `adminDeleteCohort` | `lib/moodle.ts` |
+| `core_cohort_add_cohort_members` | `adminAddCohortMember` | `lib/moodle.ts` |
+| `core_cohort_delete_cohort_members` | `adminRemoveCohortMember` | `lib/moodle.ts` |
+| `core_cohort_get_cohort_members` | `adminGetCohortMembers` | `lib/moodle.ts` |
+| `core_auth_request_password_reset` | `requestPasswordReset` | `lib/moodle.ts` |

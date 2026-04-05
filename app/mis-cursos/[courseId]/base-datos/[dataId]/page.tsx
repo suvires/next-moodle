@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
@@ -125,9 +124,7 @@ export default async function DatabasePage({ params }: DatabasePageProps) {
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Base de datos"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 

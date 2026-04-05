@@ -6,7 +6,16 @@ import process from "node:process";
 
 const DEFAULT_ENV_PATH = ".env";
 const SOURCE_DIRS = ["app", "lib"];
-const FUNCTION_PATTERN = /\b(?:core|mod|enrol|tool|local)_[a-z0-9_]+\b/g;
+const FUNCTION_PATTERN =
+  /\b(?:core|mod|enrol|tool|local|message_popup|gradereport)_[a-z0-9_]+\b/g;
+const EXACT_FUNCTION_PATTERN =
+  /^(?:core|mod|enrol|tool|local|message_popup|gradereport)_[a-z0-9_]+$/;
+const MANIFEST_PATH = "functions.md";
+const AVAILABLE_STATUSES = new Set([
+  "available",
+  "available_invalid_params",
+  "available_feature_disabled",
+]);
 
 function printHelp() {
   console.log(`Usage: node scripts/check-moodle-service-functions.mjs [options]
@@ -15,10 +24,21 @@ Checks which Moodle web service functions used by this repo are accessible with
 the configured token. Functions returning access-related errors are reported as
 "missing_or_denied" and listed as candidates to add to the Moodle service.
 
+Modes:
+  (default)      Probe each discovered function against the Moodle REST API.
+  --list         Print sync-manifest function names only (no network calls needed).
+  --list-discovered
+                 Print raw regex-discovered names from app/ and lib/ for audit.
+  --sync         Call local_next_moodle_sync_service_functions to sync functions
+                 to the configured target service. Requires the plugin to be
+                 installed and configured in Moodle.
+
 Options:
-  --env <path>   Path to the env file. Default: .env
-  --json         Print machine-readable JSON
-  --help         Show this help
+  --env <path>       Path to the env file. Default: .env
+  --json             Print machine-readable JSON
+  --sync-token <t>   Token to use for --sync (overrides MOODLE_API_TOKEN)
+  --dry-run          With --sync: compute diff but do not apply changes
+  --help             Show this help
 `);
 }
 
@@ -27,6 +47,11 @@ function parseArgs(argv) {
     envPath: DEFAULT_ENV_PATH,
     json: false,
     help: false,
+    list: false,
+    listDiscovered: false,
+    sync: false,
+    syncToken: null,
+    dryRun: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -51,6 +76,38 @@ function parseArgs(argv) {
 
     if (arg === "--help" || arg === "-h") {
       options.help = true;
+      continue;
+    }
+
+    if (arg === "--list") {
+      options.list = true;
+      continue;
+    }
+
+    if (arg === "--list-discovered") {
+      options.listDiscovered = true;
+      continue;
+    }
+
+    if (arg === "--sync") {
+      options.sync = true;
+      continue;
+    }
+
+    if (arg === "--sync-token") {
+      const value = argv[index + 1];
+
+      if (!value) {
+        throw new Error("Missing value for --sync-token.");
+      }
+
+      options.syncToken = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      options.dryRun = true;
       continue;
     }
 
@@ -185,6 +242,61 @@ async function discoverUsedFunctions(rootDir) {
   return [...found].sort();
 }
 
+function cleanCell(cell) {
+  return cell.trim().replace(/^`|`$/g, "");
+}
+
+function isDividerRow(columns) {
+  return columns.every((column) => /^:?-{3,}:?$/.test(column.replace(/\s+/g, "")));
+}
+
+async function readManifestFunctions(rootDir) {
+  const manifestPath = path.join(rootDir, MANIFEST_PATH);
+  const raw = await readFile(manifestPath, "utf8");
+  const entries = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+
+    if (!trimmed.startsWith("|")) {
+      continue;
+    }
+
+    const columns = trimmed
+      .split("|")
+      .slice(1, -1)
+      .map((column) => column.trim());
+
+    if (columns.length < 3 || isDividerRow(columns)) {
+      continue;
+    }
+
+    const [functionCell, wrapperCell, locationCell, syncCell] = columns;
+    const wsfunction = cleanCell(functionCell);
+
+    if (!EXACT_FUNCTION_PATTERN.test(wsfunction)) {
+      continue;
+    }
+
+    entries.push({
+      function: wsfunction,
+      wrapper: cleanCell(wrapperCell),
+      location: cleanCell(locationCell),
+      sync: cleanCell(syncCell || "") || "include",
+    });
+  }
+
+  return entries;
+}
+
+function resolveManifestFunctions(entries) {
+  return [...new Set(
+    entries
+      .filter((entry) => entry.sync !== "exclude-temp")
+      .map((entry) => entry.function)
+  )].sort();
+}
+
 function isErrorPayload(payload) {
   return Boolean(
     payload &&
@@ -232,6 +344,16 @@ function classifyError(payload) {
     combined.includes("invalid response value detected")
   ) {
     return "available_invalid_params";
+  }
+
+  if (
+    combined.includes("disabled") ||
+    combined.includes("deshabilitado") ||
+    combined.includes("not enabled") ||
+    combined.includes("not active") ||
+    combined.includes("is turned off")
+  ) {
+    return "available_feature_disabled";
   }
 
   return "error";
@@ -293,7 +415,7 @@ async function probeFunction(restUrl, token, wsfunction) {
   return {
     function: wsfunction,
     status,
-    ok: status === "available" || status === "available_invalid_params",
+    ok: AVAILABLE_STATUSES.has(status),
     httpStatus: response.status,
     errorcode: payload?.errorcode || payload?.exception,
     message: payload?.message || payload?.error,
@@ -306,19 +428,12 @@ function formatReport(config, results, json) {
     siteUrl: config.siteUrl,
     service: config.service,
     checked: results.length,
-    available: results.filter((item) =>
-      item.status === "available" || item.status === "available_invalid_params"
-    ).length,
+    available: results.filter((item) => AVAILABLE_STATUSES.has(item.status)).length,
     missingOrDenied: results.filter((item) => item.status === "missing_or_denied").length,
     invalidToken: results.filter((item) => item.status === "invalid_token").length,
     errors: results.filter(
       (item) =>
-        ![
-          "available",
-          "available_invalid_params",
-          "missing_or_denied",
-          "invalid_token",
-        ].includes(item.status)
+        ![...AVAILABLE_STATUSES, "missing_or_denied", "invalid_token"].includes(item.status)
     ).length,
     functionsToAdd: hasInvalidToken
       ? []
@@ -370,6 +485,95 @@ function formatReport(config, results, json) {
   return lines.join("\n");
 }
 
+function resolveSyncConfig(envValues, syncTokenArg) {
+  const rawUrl = envValues.MOODLE_API_URL?.trim();
+
+  if (!rawUrl) {
+    throw new Error("Missing MOODLE_API_URL in the env file.");
+  }
+
+  const token = syncTokenArg || envValues.MOODLE_API_TOKEN?.trim();
+
+  if (!token) {
+    throw new Error("Missing MOODLE_API_TOKEN in the env file (or pass --sync-token).");
+  }
+
+  let siteUrl = stripTrailingSlash(rawUrl);
+
+  if (siteUrl.endsWith("/webservice/rest/server.php")) {
+    siteUrl = siteUrl.replace(/\/webservice\/rest\/server\.php$/, "");
+  } else if (siteUrl.endsWith("/login/token.php")) {
+    siteUrl = siteUrl.replace(/\/login\/token\.php$/, "");
+  }
+
+  return {
+    token,
+    restUrl: `${siteUrl}/webservice/rest/server.php`,
+  };
+}
+
+async function callSyncFunction(restUrl, token, functions, dryRun) {
+  // Moodle REST expects indexed array notation: functions[0]=…&functions[1]=…
+  const params = new URLSearchParams({
+    wstoken: token,
+    wsfunction: "local_next_moodle_sync_service_functions",
+    moodlewsrestformat: "json",
+    dryrun: dryRun ? "1" : "0",
+  });
+
+  functions.forEach((fn, i) => params.append(`functions[${i}]`, fn));
+
+  let response;
+
+  try {
+    response = await fetch(restUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new Error(
+      `Network error calling sync function: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const text = await response.text();
+  let payload;
+
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Non-JSON response from Moodle sync endpoint (HTTP ${response.status}): ${text.slice(0, 300)}`
+    );
+  }
+
+  if (payload && ("exception" in payload || "errorcode" in payload)) {
+    throw new Error(
+      `Moodle sync error [${payload.errorcode ?? payload.exception}]: ${payload.message ?? payload.error}`
+    );
+  }
+
+  return payload;
+}
+
+function formatSyncResult(result, json) {
+  if (json) {
+    return JSON.stringify(result, null, 2);
+  }
+
+  const lines = [
+    `Service: ${result.service_name} (id=${result.service_id})`,
+    `Dry run: ${result.dryrun}`,
+    `Added (${result.added.length}): ${result.added.length > 0 ? result.added.join(", ") : "none"}`,
+    `Removed (${result.removed.length}): ${result.removed.length > 0 ? result.removed.join(", ") : "none"}`,
+    `Unchanged: ${result.unchanged.length}`,
+  ];
+
+  return lines.join("\n");
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
 
@@ -379,15 +583,39 @@ async function main() {
   }
 
   const rootDir = process.cwd();
-  const envPath = path.resolve(rootDir, options.envPath);
-  const envValues = await loadEnvFile(envPath);
-  const config = resolveMoodleConfig(envValues);
-  const functions = await discoverUsedFunctions(rootDir);
 
-  if (functions.length === 0) {
-    throw new Error("No Moodle web service functions were found in app/ or lib/.");
+  if (options.listDiscovered) {
+    const functions = await discoverUsedFunctions(rootDir);
+    console.log(options.json ? JSON.stringify(functions, null, 2) : functions.join("\n"));
+    return;
   }
 
+  const manifestEntries = await readManifestFunctions(rootDir);
+  const functions = resolveManifestFunctions(manifestEntries);
+
+  // --list mode: no network calls, no env file needed.
+  if (options.list) {
+    console.log(options.json ? JSON.stringify(functions, null, 2) : functions.join("\n"));
+    return;
+  }
+
+  const envPath = path.resolve(rootDir, options.envPath);
+  const envValues = await loadEnvFile(envPath);
+
+  if (functions.length === 0) {
+    throw new Error(`No Moodle web service functions marked for sync were found in ${MANIFEST_PATH}.`);
+  }
+
+  // --sync mode: call the plugin webservice to sync the function list.
+  if (options.sync) {
+    const syncConfig = resolveSyncConfig(envValues, options.syncToken);
+    const result = await callSyncFunction(syncConfig.restUrl, syncConfig.token, functions, options.dryRun);
+    console.log(formatSyncResult(result, options.json));
+    return;
+  }
+
+  // Default mode: probe each function.
+  const config = resolveMoodleConfig(envValues);
   const results = [];
 
   for (const wsfunction of functions) {

@@ -27,6 +27,7 @@ export async function BrandLogo({
   priority = false,
 }: BrandLogoProps) {
   const branding = await getMoodleBranding();
+  const hasLogo = compact ? !!branding.compactLogoUrl : !!branding.logoUrl;
   const imageSrc = getMoodleBrandLogoProxyUrl(compact ? "compact" : "full");
   const s = sizeStyles[size];
 
@@ -38,29 +39,32 @@ export async function BrandLogo({
         className
       )}
     >
-      <div
-        className={cn(
-          "relative flex shrink-0 items-center justify-center overflow-hidden",
-          s.container
-        )}
-      >
-        <Image
-          src={imageSrc}
-          alt={branding.siteName}
-          fill
-          priority={priority}
-          sizes={s.sizes}
-          className={cn("object-contain", s.image)}
-        />
-      </div>
-      <span
-        className={cn(
-          "text-sm font-medium text-[var(--color-foreground)]",
-          hideLabel && "sr-only"
-        )}
-      >
-        {branding.siteName}
-      </span>
+      {hasLogo ? (
+        <div
+          className={cn(
+            "relative flex shrink-0 items-center justify-center overflow-hidden",
+            s.container
+          )}
+        >
+          <Image
+            src={imageSrc}
+            alt={branding.siteName}
+            fill
+            priority={priority}
+            sizes={s.sizes}
+            className={cn("object-contain", s.image)}
+          />
+        </div>
+      ) : (
+        <span
+          className={cn(
+            "text-sm font-semibold text-[var(--color-foreground)]",
+            hideLabel && "sr-only"
+          )}
+        >
+          {branding.siteName}
+        </span>
+      )}
     </Link>
   );
 }

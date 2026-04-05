@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored docs/examples are reference material, not app code.
+    ".heroui-docs/**",
   ]),
 ]);
 

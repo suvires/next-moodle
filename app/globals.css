@@ -1,9 +1,10 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
 /* ── Design Tokens ──────────────────────────────── */
 
 :root {
-  /* Base */
+  /* ── HeroUI v3 theme overrides (bare token names, same as HeroUI's system) ── */
   --background: #f7f7f8;
   --foreground: #1c1c1e;
 
@@ -195,6 +196,15 @@ a {
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
   color: var(--warning);
+}
+
+.banner-success {
+  border-radius: var(--radius);
+  border: 1px solid var(--success-soft);
+  background: var(--success-soft);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--success);
 }
 
 .banner-info {

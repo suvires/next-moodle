@@ -7,7 +7,7 @@ type QuizFormButtonProps = {
   label: string;
   pendingLabel: string;
   intent: string;
-  variant?: "default" | "primary" | "outline" | "ghost" | "danger";
+  variant?: "primary" | "outline" | "ghost" | "danger";
   disabled?: boolean;
 };
 
@@ -27,7 +27,7 @@ export function QuizFormButton({
       value={intent}
       variant={variant}
       size="sm"
-      disabled={disabled || pending}
+      isDisabled={disabled || pending}
     >
       {pending ? pendingLabel : label}
     </Button>

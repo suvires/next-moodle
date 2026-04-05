@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { ChoiceVoteForm } from "@/app/components/choice-vote-form";
@@ -16,7 +16,12 @@ import {
   type MoodleCourseAccessProfile,
 } from "@/lib/moodle";
 import type { MoodleChoice, MoodleChoiceOption } from "@/lib/moodle";
-import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
+import {
+  getActivityRoleActions,
+  getCourseRoleLabel,
+  getCourseRoleTone,
+  shouldShowStudentParticipationActions,
+} from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type ChoiceDetailPageProps = {
@@ -37,7 +42,7 @@ function PercentageBar({
 
   return (
     <div className="flex items-center gap-3">
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/5">
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-strong)]">
         <div
           className="h-full rounded-full bg-[var(--color-accent)]"
           style={{ width: `${pct}%` }}
@@ -136,6 +141,34 @@ export default async function ChoiceDetailPage({
       adminOptions: {},
       navigationOptions: {},
     };
+  const canParticipateAsStudent = shouldShowStudentParticipationActions(
+    effectiveCourseAccess
+  );
+  const roleActionSection = {
+    title:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "Participación"
+        : effectiveCourseAccess.roleBucket === "teacher"
+          ? "Seguimiento y revisión"
+          : effectiveCourseAccess.roleBucket === "editing_teacher"
+            ? "Edición ligera"
+            : "Administración del curso",
+    description:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "Accesos rápidos para revisar resultados y emitir tu voto."
+        : "Accesos disponibles hoy para revisar la actividad desde tu rol real.",
+    tone:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "success"
+        : effectiveCourseAccess.roleBucket === "course_manager"
+          ? "warning"
+          : "accent",
+    actions: getActivityRoleActions({
+      courseId: parsedCourseId,
+      courseAccess: effectiveCourseAccess,
+      activityType: "choice",
+    }),
+  } as const;
 
   return (
     <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
@@ -145,9 +178,7 @@ export default async function ChoiceDetailPage({
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Votacion"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 
@@ -169,6 +200,8 @@ export default async function ChoiceDetailPage({
               : "Esta vista mantiene el flujo visible de votación, pero ya refleja tu rol real dentro del curso."}
           </p>
         </div>
+
+        <CourseRoleActionGrid sections={[roleActionSection]} />
 
         {errorMessage ? (
           <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
@@ -220,7 +253,7 @@ export default async function ChoiceDetailPage({
           </p>
         ) : null}
 
-        {choice && options.length > 0 ? (
+        {choice && options.length > 0 && canParticipateAsStudent ? (
           <Card className="rounded-xl">
             <CardContent className="px-5 py-5 md:px-6">
               <h2 className="text-lg font-semibold">Votar</h2>
@@ -231,6 +264,20 @@ export default async function ChoiceDetailPage({
                 allowMultiple={choice.allowMultiple}
                 returnPath={`/mis-cursos/${parsedCourseId}/votacion/${parsedChoiceId}`}
               />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {choice && options.length > 0 && !canParticipateAsStudent ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <h2 className="text-lg font-semibold">Flujo de alumno</h2>
+              <Separator className="my-3" />
+              <p className="text-sm leading-7 text-[var(--color-muted)]">
+                El formulario de voto se oculta en esta vista porque tu rol
+                actual no es de alumno. Se mantiene la consulta de resultados y
+                el contexto de la actividad.
+              </p>
             </CardContent>
           </Card>
         ) : null}

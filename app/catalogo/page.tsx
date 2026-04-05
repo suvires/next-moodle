@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { BrandLogo } from "@/app/components/brand-logo";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
+import { getSiteForceLogin } from "@/lib/moodle-brand";
 import {
   getUserCourses,
   hasPublicCourseCatalogAccess,
@@ -21,8 +23,16 @@ type CatalogoPageProps = {
 };
 
 export default async function CatalogoPage({ searchParams }: CatalogoPageProps) {
-  const session = await getSession();
-  const { q } = await searchParams;
+  const [session, { q }, forceLogin] = await Promise.all([
+    getSession(),
+    searchParams,
+    getSiteForceLogin(),
+  ]);
+
+  if (forceLogin && !session) {
+    redirect("/");
+  }
+
   const query = q?.trim() || "";
   const publicCatalogEnabled = hasPublicCourseCatalogAccess();
 
@@ -72,12 +82,8 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
           <header className="flex flex-col gap-4 rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface)] px-5 py-5 md:flex-row md:items-center md:justify-between">
             <BrandLogo priority compact={false} size="lg" />
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="ghost" asChild>
-                <Link href="/">Portada</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/#login">Entrar</Link>
-              </Button>
+              <LinkButton href="/" variant="ghost">Portada</LinkButton>
+              <LinkButton href="/#login" variant="primary">Entrar</LinkButton>
             </div>
           </header>
         )}
@@ -168,9 +174,7 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
                             </Button>
                           </Link>
                         ) : (
-                          <Button size="sm" variant="outline" className="w-full" asChild>
-                            <Link href="/#login">Inicia sesión para inscribirte</Link>
-                          </Button>
+                          <LinkButton href="/#login" size="sm" variant="outline" className="w-full">Inicia sesión para inscribirte</LinkButton>
                         )}
                       </div>
                     </CardContent>

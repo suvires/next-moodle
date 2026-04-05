@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
 import { ForumDiscussionForm } from "@/app/components/forum-discussion-form";
 import { RichHtml } from "@/app/components/rich-html";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
@@ -20,12 +21,17 @@ import {
   type MoodleCourseAccessProfile,
   viewForum,
 } from "@/lib/moodle";
-import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
+import {
+  getActivityRoleActions,
+  getCourseRoleLabel,
+  getCourseRoleTone,
+  shouldShowStudentParticipationActions,
+} from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type ForumPageProps = {
   params: Promise<{ forumId: string }>;
-  searchParams: Promise<{ courseId?: string }>;
+  searchParams: Promise<{ courseId?: string; filter?: string }>;
 };
 
 function getInitials(name?: string) {
@@ -196,6 +202,51 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
         navigationOptions: {},
       }
     : null;
+  const canParticipateAsStudent =
+    effectiveCourseAccess &&
+    shouldShowStudentParticipationActions(effectiveCourseAccess);
+  const roleActionSection = effectiveCourseAccess
+    ? {
+        title:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "Participación"
+            : effectiveCourseAccess.roleBucket === "teacher"
+              ? "Seguimiento y revisión"
+              : effectiveCourseAccess.roleBucket === "editing_teacher"
+                ? "Edición ligera"
+                : "Administración del curso",
+        description:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "Accesos rápidos para leer, participar y volver al contexto del curso."
+            : "Accesos disponibles hoy para revisar el foro desde tu rol real en el curso.",
+        tone:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "success"
+            : effectiveCourseAccess.roleBucket === "course_manager"
+              ? "warning"
+              : "accent",
+        actions: getActivityRoleActions({
+          courseId: effectiveCourseAccess.courseId,
+          courseAccess: effectiveCourseAccess,
+          activityType: "forum",
+        }),
+      } as const
+    : null;
+  const discussionFilter = resolvedSearchParams.filter || "all";
+  const visibleDiscussions = discussions.filter((discussion) => {
+    switch (discussionFilter) {
+      case "unanswered":
+        return discussion.repliesCount === 0;
+      case "pinned":
+        return discussion.pinned;
+      case "locked":
+        return discussion.locked;
+      case "open":
+        return !discussion.locked;
+      default:
+        return true;
+    }
+  });
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -207,6 +258,16 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
           ...(course ? [{ label: course.fullname, href: backHref }] : []),
           { label: forum?.name ?? "Foro" },
         ]}
+        actions={
+          forum && effectiveCourseAccess && effectiveCourseAccess.roleBucket !== "student" ? (
+            <Link
+              href={`/mis-cursos/${forum.courseId}/reportes`}
+              className="text-[var(--muted)] transition hover:text-[var(--foreground)]"
+            >
+              Reportes
+            </Link>
+          ) : undefined
+        }
       />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8 md:py-10">
@@ -243,6 +304,42 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
           ) : null}
         </div>
 
+        {roleActionSection ? (
+          <CourseRoleActionGrid sections={[roleActionSection]} />
+        ) : null}
+
+        {effectiveCourseAccess && effectiveCourseAccess.roleBucket !== "student" ? (
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "Todos" },
+              { key: "unanswered", label: "Sin respuesta" },
+              { key: "pinned", label: "Fijados" },
+              { key: "locked", label: "Cerrados" },
+              { key: "open", label: "Abiertos" },
+            ].map((filter) => {
+              const isActive = discussionFilter === filter.key;
+              const href =
+                filter.key === "all"
+                  ? returnPath
+                  : `${returnPath}${returnPath.includes("?") ? "&" : "?"}filter=${filter.key}`;
+
+              return (
+                <Link
+                  key={filter.key}
+                  href={href}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    isActive
+                      ? "border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                      : "border-[var(--color-line)] text-[var(--color-muted)]"
+                  }`}
+                >
+                  {filter.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+
         {errorMessage && (
           <div className="banner-danger mb-4">
             {expiredSession ? "La sesión ya no es válida." : "No se pudo cargar el foro."}
@@ -270,7 +367,7 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
           </div>
         )}
 
-        {forum && canStartDiscussionUi && (
+        {forum && canStartDiscussionUi && canParticipateAsStudent ? (
           <div className="mb-6 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
             <p className="mb-1 font-bold text-[var(--foreground)]">Nuevo hilo</p>
             <p className="mb-4 text-sm text-[var(--muted)]">
@@ -278,11 +375,69 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
             </p>
             <ForumDiscussionForm forumId={forum.id} returnPath={returnPath} />
           </div>
-        )}
+        ) : null}
+
+        {forum && canStartDiscussionUi && !canParticipateAsStudent ? (
+          <div className="mb-6 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <p className="mb-1 font-bold text-[var(--foreground)]">
+              Participación del alumno
+            </p>
+            <p className="text-sm leading-7 text-[var(--muted)]">
+              El formulario para abrir nuevos hilos se oculta porque esta vista
+              está priorizando seguimiento y revisión según tu rol actual.
+            </p>
+          </div>
+        ) : null}
+
+        {effectiveCourseAccess && effectiveCourseAccess.roleBucket !== "student" ? (
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                Hilos
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
+                {discussions.length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                Sin respuesta
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
+                {discussions.filter((discussion) => discussion.repliesCount === 0).length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                Fijados
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
+                {discussions.filter((discussion) => discussion.pinned).length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                Última actividad
+              </p>
+              <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+                {formatDate(
+                  discussions.reduce((latest, discussion) => {
+                    const current =
+                      discussion.modifiedAt ||
+                      discussion.startedAt ||
+                      discussion.createdAt ||
+                      0;
+                    return current > latest ? current : latest;
+                  }, 0) || undefined
+                )}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         <section className="flex flex-col gap-3">
-          {discussions.length > 0 ? (
-            discussions.map((discussion) => (
+          {visibleDiscussions.length > 0 ? (
+            visibleDiscussions.map((discussion) => (
               <Link
                 key={discussion.id}
                 href={
@@ -321,7 +476,9 @@ export default async function ForumPage({ params, searchParams }: ForumPageProps
             ))
           ) : !errorMessage && !discussionsAccessError ? (
             <p className="py-16 text-center text-[var(--muted)]">
-              Este foro todavía no tiene discusiones.
+              {effectiveCourseAccess && effectiveCourseAccess.roleBucket !== "student"
+                ? "No hay discusiones que coincidan con el filtro actual."
+                : "Este foro todavía no tiene discusiones."}
             </p>
           ) : null}
         </section>

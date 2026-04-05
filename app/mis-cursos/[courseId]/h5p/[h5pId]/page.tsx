@@ -1,14 +1,18 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
 import {
+  getUnsupportedMoodleFeatureMessage,
+  resolveMoodleFeatureSupport,
+} from "@/lib/moodle-feature-support";
+import {
   getH5PActivitiesByCourses,
   getH5PAttempts,
+  getSiteInfo,
   getUserCourses,
   isAuthenticationError,
   resolveUserAccessProfile,
@@ -59,13 +63,21 @@ export default async function H5PPage({ params }: H5PPageProps) {
   let errorMessage: string | null = null;
   let expiredSession = false;
   let courseAccess: MoodleCourseAccessProfile | null = null;
+  let supportsH5P = false;
 
   try {
+    const siteInfo = await getSiteInfo(session.token);
+    supportsH5P = resolveMoodleFeatureSupport(siteInfo.functions).h5p;
+
     const [coursesResult, activities, attemptsResult, accessProfile] =
       await Promise.all([
       getUserCourses(session.token, session.userId),
-      getH5PActivitiesByCourses(session.token, [parsedCourseId]),
-      getH5PAttempts(session.token, parsedH5PId).catch(() => []),
+      supportsH5P
+        ? getH5PActivitiesByCourses(session.token, [parsedCourseId])
+        : Promise.resolve([]),
+      supportsH5P
+        ? getH5PAttempts(session.token, parsedH5PId).catch(() => [])
+        : Promise.resolve([]),
       resolveUserAccessProfile(session.token, session.userId).catch(
         () => null
       ),
@@ -93,6 +105,15 @@ export default async function H5PPage({ params }: H5PPageProps) {
 
   if (!course && !errorMessage) {
     notFound();
+  }
+
+  if (!supportsH5P && !errorMessage) {
+    h5p = {
+      id: parsedH5PId,
+      courseId: parsedCourseId,
+      courseModuleId: 0,
+      name: "Actividad H5P",
+    };
   }
 
   if (!h5p && !errorMessage) {
@@ -125,9 +146,7 @@ export default async function H5PPage({ params }: H5PPageProps) {
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Actividad H5P"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 
@@ -158,6 +177,12 @@ export default async function H5PPage({ params }: H5PPageProps) {
           </div>
         ) : null}
 
+        {!supportsH5P ? (
+          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/5 px-4 py-3 text-sm text-[var(--color-warning)]">
+            {getUnsupportedMoodleFeatureMessage("h5p")}
+          </div>
+        ) : null}
+
         {h5p?.intro ? (
           <Card className="rounded-xl">
             <CardContent className="px-5 py-5 md:px-6">
@@ -177,7 +202,7 @@ export default async function H5PPage({ params }: H5PPageProps) {
             <Separator className="my-3" />
 
             <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-[var(--color-foreground)]">
-              <span>Intentos: {attempts.length}</span>
+              <span>Intentos: {supportsH5P ? attempts.length : "No disponible"}</span>
             </div>
 
             <p className="rounded-lg border border-[var(--color-muted)]/20 bg-[var(--color-muted)]/5 px-4 py-3 text-xs leading-5 text-[var(--color-muted)]">

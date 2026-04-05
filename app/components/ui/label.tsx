@@ -1,17 +1,15 @@
-"use client";
-
-import * as React from "react";
-import * as LabelPrimitive from "@radix-ui/react-label";
+import { Label as HeroLabel } from "@heroui/react";
 import { cn } from "@/lib/utils";
+import type * as React from "react";
 
 export function Label({
   className,
   ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+}: React.ComponentProps<typeof HeroLabel>) {
   return (
-    <LabelPrimitive.Root
+    <HeroLabel
       className={cn(
-        "text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]",
+        "cursor-pointer text-xs font-semibold uppercase tracking-wide text-[var(--muted)]",
         className
       )}
       {...props}

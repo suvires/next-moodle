@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
 import { ManualCompletionToggle } from "@/app/components/manual-completion-toggle";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { ReactiveExternalLink } from "@/app/components/reactive-external-link";
@@ -18,7 +19,12 @@ import {
   type MoodleCourseAccessProfile,
 } from "@/lib/moodle";
 import { ProgressBar } from "@/app/components/progress-bar";
-import { getCourseRoleLabel, getCourseRoleTone, getCourseRoleDescription } from "@/lib/course-roles";
+import {
+  getCourseRoleLabel,
+  getCourseRoleTone,
+  getCourseRoleDescription,
+  getCourseOverviewActionSections,
+} from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type CourseDetailPageProps = {
@@ -36,42 +42,6 @@ function formatDate(value?: number) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value * 1000));
-}
-
-function getCourseActionItems(
-  courseId: number,
-  courseAccess: MoodleCourseAccessProfile
-) {
-  const items = [
-    {
-      href: `/mis-cursos/${courseId}/tareas`,
-      label: "Tareas",
-      body: "Consulta el tablero de tareas del curso.",
-    },
-    {
-      href: `/mis-cursos/${courseId}/calificaciones`,
-      label: "Calificaciones",
-      body: "Revisa la información de evaluación disponible en la app.",
-    },
-  ];
-
-  if (courseAccess.roleBucket !== "student") {
-    items.push({
-      href: "/buscar",
-      label: "Buscar contenido",
-      body: "Busca materiales o actividad del campus mientras trabajas este curso.",
-    });
-  }
-
-  if (courseAccess.roleBucket === "course_manager") {
-    items.push({
-      href: "/catalogo",
-      label: "Catálogo",
-      body: "Comprueba cómo se presenta la oferta formativa fuera del curso.",
-    });
-  }
-
-  return items.slice(0, 4);
 }
 
 function getCompletionBadge(module: Awaited<ReturnType<typeof getCourseContents>>[number]["modules"][number]) {
@@ -159,20 +129,12 @@ function getActionHref(courseId: number, module: Awaited<ReturnType<typeof getCo
     return `/mis-cursos/${courseId}/taller/${module.instance}`;
   }
 
-  if (module.modname === "chat" && module.instance) {
-    return `/mis-cursos/${courseId}/chat/${module.instance}`;
-  }
-
   if (module.modname === "lti" && module.instance) {
     return `/mis-cursos/${courseId}/externo/${module.instance}`;
   }
 
   if (module.modname === "h5pactivity" && module.instance) {
     return `/mis-cursos/${courseId}/h5p/${module.instance}`;
-  }
-
-  if (module.modname === "survey" && module.instance) {
-    return `/mis-cursos/${courseId}/encuesta-predefinida/${module.instance}`;
   }
 
   return module.url
@@ -261,7 +223,7 @@ export default async function CourseDetailPage({
       adminOptions: {},
       navigationOptions: {},
     };
-  const courseActionItems = getCourseActionItems(
+  const courseActionSections = getCourseOverviewActionSections(
     parsedCourseId,
     effectiveCourseAccess
   );
@@ -283,6 +245,16 @@ export default async function CourseDetailPage({
             <Link href={`/mis-cursos/${parsedCourseId}/calificaciones`} className="text-[var(--muted)] transition hover:text-[var(--foreground)]">
               Calificaciones
             </Link>
+            {effectiveCourseAccess.roleBucket !== "student" ? (
+              <Link href={`/mis-cursos/${parsedCourseId}/reportes`} className="text-[var(--muted)] transition hover:text-[var(--foreground)]">
+                Reportes
+              </Link>
+            ) : null}
+            {effectiveCourseAccess.canManageParticipants ? (
+              <Link href={`/mis-cursos/${parsedCourseId}/participantes`} className="text-[var(--muted)] transition hover:text-[var(--foreground)]">
+                Participantes
+              </Link>
+            ) : null}
             {effectiveCourseAccess.roleBucket !== "student" ? (
               <Link href="/buscar" className="text-[var(--muted)] transition hover:text-[var(--foreground)]">
                 Buscar
@@ -379,18 +351,42 @@ export default async function CourseDetailPage({
                 </div>
                 <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                    Progreso
+                    {effectiveCourseAccess.roleBucket === "student"
+                      ? "Progreso"
+                      : effectiveCourseAccess.roleBucket === "teacher"
+                        ? "Seguimiento"
+                        : effectiveCourseAccess.roleBucket === "editing_teacher"
+                          ? "Edición"
+                          : "Control"}
                   </p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
-                    {progress.percentage}%
+                    {effectiveCourseAccess.roleBucket === "student"
+                      ? `${progress.percentage}%`
+                      : effectiveCourseAccess.roleBucket === "teacher"
+                        ? `${courseUpdates.length}`
+                        : effectiveCourseAccess.roleBucket === "editing_teacher"
+                          ? `${sections.length}`
+                          : `${courseUpdates.length}`}
                   </p>
                 </div>
                 <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                    Novedades
+                    {effectiveCourseAccess.roleBucket === "student"
+                      ? "Novedades"
+                      : effectiveCourseAccess.roleBucket === "teacher"
+                        ? "Calificaciones"
+                        : effectiveCourseAccess.roleBucket === "editing_teacher"
+                          ? "Búsqueda"
+                          : "Catálogo"}
                   </p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
-                    {courseUpdates.length}
+                    {effectiveCourseAccess.roleBucket === "student"
+                      ? courseUpdates.length
+                      : effectiveCourseAccess.roleBucket === "teacher"
+                        ? "Activa"
+                        : effectiveCourseAccess.roleBucket === "editing_teacher"
+                          ? "Activa"
+                          : "Activo"}
                   </p>
                 </div>
               </div>
@@ -400,23 +396,10 @@ export default async function CourseDetailPage({
           <Card className="rounded-2xl">
             <CardContent className="px-5 py-5">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
-                Accesos rápidos
+                Acciones por rol
               </h2>
-              <div className="mt-4 flex flex-col gap-3">
-                {courseActionItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 transition hover:border-[var(--line-strong)]"
-                  >
-                    <p className="text-sm font-medium text-[var(--foreground)]">
-                      {item.label}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                      {item.body}
-                    </p>
-                  </Link>
-                ))}
+              <div className="mt-4">
+                <CourseRoleActionGrid sections={courseActionSections} />
               </div>
             </CardContent>
           </Card>
@@ -442,9 +425,21 @@ export default async function CourseDetailPage({
 
                 {section.modules.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    {section.modules.map((module) => {
+                    {section.modules
+                      .filter((module) => module.visibleOnCoursePage)
+                      .map((module) => {
                       const completionBadge = getCompletionBadge(module);
                       const actionHref = getActionHref(parsedCourseId, module);
+
+                      if (module.modname === "label") {
+                        return module.description ? (
+                          <RichHtml
+                            key={module.id}
+                            html={module.description}
+                            className="px-1 text-sm leading-relaxed text-[var(--muted)]"
+                          />
+                        ) : null;
+                      }
 
                       return (
                         <article
@@ -455,6 +450,10 @@ export default async function CourseDetailPage({
                             module.modname === "forum" ||
                             module.modname === "resource" ||
                             module.modname === "scorm" ||
+                            module.modname === "assign" ||
+                            module.modname === "quiz" ||
+                            module.modname === "folder" ||
+                            module.modname === "page" ||
                             module.modname === "book" ||
                             module.modname === "glossary" ||
                             module.modname === "wiki" ||
@@ -463,10 +462,8 @@ export default async function CourseDetailPage({
                             module.modname === "lesson" ||
                             module.modname === "data" ||
                             module.modname === "workshop" ||
-                            module.modname === "chat" ||
                             module.modname === "lti" ||
-                            module.modname === "h5pactivity" ||
-                            module.modname === "survey" ? (
+                            module.modname === "h5pactivity" ? (
                               <Link
                                 href={actionHref}
                                 aria-label={`Abrir ${module.name}`}
@@ -562,7 +559,7 @@ export default async function CourseDetailPage({
                                 />
                               )}
                               {!actionHref && !module.userVisible && (
-                                <Button variant="outline" size="sm" disabled>
+                                <Button variant="outline" size="sm" isDisabled>
                                   No disponible
                                 </Button>
                               )}

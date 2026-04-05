@@ -2,10 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
-import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
-import { getContacts, isAuthenticationError } from "@/lib/moodle";
+import {
+  getUnsupportedMoodleFeatureMessage,
+  resolveMoodleFeatureSupport,
+} from "@/lib/moodle-feature-support";
+import { getContacts, getSiteInfo, isAuthenticationError } from "@/lib/moodle";
 import { getMoodleMediaProxyUrl } from "@/lib/moodle-media";
 import { getSession } from "@/lib/session";
 
@@ -28,9 +31,15 @@ export default async function ContactsPage() {
   let contacts: Awaited<ReturnType<typeof getContacts>> = [];
   let errorMessage: string | null = null;
   let expiredSession = false;
+  let supportsContacts = false;
 
   try {
-    contacts = await getContacts(session.token);
+    const siteInfo = await getSiteInfo(session.token);
+    supportsContacts = resolveMoodleFeatureSupport(siteInfo.functions).contacts;
+
+    if (supportsContacts) {
+      contacts = await getContacts(session.token, session.userId);
+    }
   } catch (error) {
     expiredSession = isAuthenticationError(error);
     logger.error("Contacts load failed", {
@@ -72,7 +81,13 @@ export default async function ContactsPage() {
           </div>
         ) : null}
 
-        {contacts.length === 0 && !errorMessage ? (
+        {!supportsContacts ? (
+          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/5 px-4 py-3 text-sm text-[var(--color-warning)]">
+            {getUnsupportedMoodleFeatureMessage("contacts")}
+          </div>
+        ) : null}
+
+        {supportsContacts && contacts.length === 0 && !errorMessage ? (
           <p className="py-12 text-center text-sm text-[var(--color-muted)]">
             No tienes contactos.
           </p>

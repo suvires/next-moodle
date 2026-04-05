@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
-import { getCoursCompetencies, getUserCompetencyInCourse, getUserCourses, isAuthenticationError } from "@/lib/moodle";
+import {
+  getUnsupportedMoodleFeatureMessage,
+  resolveMoodleFeatureSupport,
+} from "@/lib/moodle-feature-support";
+import { getCoursCompetencies, getSiteInfo, getUserCompetencyInCourse, getUserCourses, isAuthenticationError } from "@/lib/moodle";
 import { getSession } from "@/lib/session";
 
 type CompetenciasPageProps = {
@@ -31,11 +33,16 @@ export default async function CompetenciasPage({ params }: CompetenciasPageProps
 
   let courses = [] as Awaited<ReturnType<typeof getUserCourses>>;
   let competencies = [] as Awaited<ReturnType<typeof getCoursCompetencies>>;
-  let statuses = new Map<number, { proficient: boolean; grade?: number }>();
+  const statuses = new Map<number, { proficient: boolean; grade?: number }>();
   let errorMessage: string | null = null;
   let expiredSession = false;
+  let supportsCompetencyStatus = false;
 
   try {
+    const siteInfo = await getSiteInfo(session.token);
+    supportsCompetencyStatus =
+      resolveMoodleFeatureSupport(siteInfo.functions).competencyStatus;
+
     const [coursesResult, competenciesResult] = await Promise.all([
       getUserCourses(session.token, session.userId),
       getCoursCompetencies(session.token, parsedCourseId),
@@ -45,18 +52,20 @@ export default async function CompetenciasPage({ params }: CompetenciasPageProps
     competencies = competenciesResult;
 
     // Fetch user status for each competency
-    const statusResults = await Promise.allSettled(
-      competencies.map((c) =>
-        getUserCompetencyInCourse(session.token, parsedCourseId, session.userId, c.id)
-      )
-    );
+    if (supportsCompetencyStatus) {
+      const statusResults = await Promise.allSettled(
+        competencies.map((c) =>
+          getUserCompetencyInCourse(session.token, parsedCourseId, session.userId, c.id)
+        )
+      );
 
-    for (const result of statusResults) {
-      if (result.status === "fulfilled") {
-        statuses.set(result.value.competencyId, {
-          proficient: result.value.proficient,
-          grade: result.value.grade,
-        });
+      for (const result of statusResults) {
+        if (result.status === "fulfilled") {
+          statuses.set(result.value.competencyId, {
+            proficient: result.value.proficient,
+            grade: result.value.grade,
+          });
+        }
       }
     }
   } catch (error) {
@@ -124,6 +133,12 @@ export default async function CompetenciasPage({ params }: CompetenciasPageProps
           </div>
         ) : null}
 
+        {!supportsCompetencyStatus ? (
+          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/5 px-4 py-3 text-sm text-[var(--color-warning)]">
+            {getUnsupportedMoodleFeatureMessage("competencyStatus")}
+          </div>
+        ) : null}
+
         {competencies.length > 0 ? (
           <section className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold text-[var(--color-foreground)]">
@@ -156,8 +171,12 @@ export default async function CompetenciasPage({ params }: CompetenciasPageProps
                       </div>
 
                       <div className="shrink-0">
-                        {isProficient ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+                        {!supportsCompetencyStatus ? (
+                          <span className="inline-flex items-center rounded-full bg-[var(--color-foreground)]/5 px-3 py-1 text-xs font-medium text-[var(--color-muted)]">
+                            Estado no disponible
+                          </span>
+                        ) : isProficient ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">
                             <svg
                               className="h-3.5 w-3.5"
                               fill="none"

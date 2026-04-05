@@ -19,7 +19,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" disabled={pending} size="sm">
+    <Button type="submit" isDisabled={pending} size="sm">
       {pending ? "Guardando..." : "Guardar preferencias"}
     </Button>
   );
@@ -75,15 +75,11 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
       ) : null}
 
       {state.error ? (
-        <p className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-3 py-2.5 text-sm text-[var(--color-danger)]">
-          {state.error}
-        </p>
+        <p className="banner-danger">{state.error}</p>
       ) : null}
 
       {state.success ? (
-        <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5 text-sm text-emerald-400">
-          Preferencias guardadas.
-        </p>
+        <p className="banner-success">Preferencias guardadas.</p>
       ) : null}
 
       {preferences.length > 0 ? <SubmitButton /> : null}

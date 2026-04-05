@@ -468,6 +468,13 @@ type RawMoodleEnrolledUserRole = {
 
 type RawMoodleEnrolledUser = {
   id: number;
+  fullname?: string;
+  email?: string;
+  lastaccess?: number;
+  profileimageurl?: string;
+  profileimageurlsmall?: string;
+  userpictureurl?: string;
+  userpictureurlsmall?: string;
   roles?: RawMoodleEnrolledUserRole[];
 };
 
@@ -501,6 +508,16 @@ export type MoodleCourseRoleAssignment = {
   name: string;
   shortName?: string;
   sortOrder?: number;
+};
+
+export type MoodleCourseParticipant = {
+  id: number;
+  fullName: string;
+  email?: string;
+  pictureUrl?: string;
+  lastAccess?: number;
+  roles: MoodleCourseRoleAssignment[];
+  roleBucket: MoodleCourseRoleBucket;
 };
 
 export type MoodleCourseRoleBucket =
@@ -591,6 +608,10 @@ function getServerMoodleToken() {
   }
 
   return token;
+}
+
+export function getAdminMoodleToken(): string {
+  return getServerMoodleToken();
 }
 
 function toMoodleError(payload: RawMoodleError, fallbackMessage: string) {
@@ -973,6 +994,37 @@ export async function getCourseUserRoleAssignments(
     shortName: role.shortname?.trim() || undefined,
     sortOrder: role.sortorder,
   })) satisfies MoodleCourseRoleAssignment[];
+}
+
+export async function getCourseParticipants(token: string, courseId: number) {
+  const users = await moodleRequest<RawMoodleEnrolledUser[]>(
+    token,
+    "core_enrol_get_enrolled_users",
+    {
+      courseid: String(courseId),
+    }
+  );
+
+  return (users || [])
+    .map((user) => {
+      const roles = (user.roles || []).map((role) => ({
+        roleId: role.roleid,
+        name: role.name?.trim() || role.shortname?.trim() || "Sin rol",
+        shortName: role.shortname?.trim() || undefined,
+        sortOrder: role.sortorder,
+      })) satisfies MoodleCourseRoleAssignment[];
+
+      return {
+        id: user.id,
+        fullName: user.fullname?.trim() || `Usuario ${user.id}`,
+        email: user.email?.trim() || undefined,
+        pictureUrl: pickUserPictureUrl(user) || undefined,
+        lastAccess: user.lastaccess || undefined,
+        roles,
+        roleBucket: deriveCourseRoleBucket(roles),
+      } satisfies MoodleCourseParticipant;
+    })
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "es"));
 }
 
 export async function getCourseUserRoleAssignmentsFromProfile(
@@ -1407,6 +1459,69 @@ export async function addForumReply(
       messageformat: "1",
     }
   );
+}
+
+export async function setForumDiscussionLockState(
+  token: string,
+  forumId: number,
+  discussionId: number,
+  targetState: "locked" | "unlocked"
+) {
+  const result = await moodleRequest<{
+    status?: boolean;
+    warnings?: Array<{ message?: string }>;
+  }>(token, "mod_forum_set_lock_state", {
+    forumid: String(forumId),
+    discussionid: String(discussionId),
+    targetstate: targetState,
+  });
+
+  const warningMessage = getFirstWarningMessage(result.warnings);
+
+  if (warningMessage) {
+    throw new MoodleApiError(warningMessage, "forum_lock_state_warning");
+  }
+
+  return result.status ?? true;
+}
+
+export async function setForumDiscussionPinState(
+  token: string,
+  discussionId: number,
+  targetState: boolean
+) {
+  const result = await moodleRequest<{
+    status?: boolean;
+    warnings?: Array<{ message?: string }>;
+  }>(token, "mod_forum_set_pin_state", {
+    discussionid: String(discussionId),
+    targetstate: targetState ? "1" : "0",
+  });
+
+  const warningMessage = getFirstWarningMessage(result.warnings);
+
+  if (warningMessage) {
+    throw new MoodleApiError(warningMessage, "forum_pin_state_warning");
+  }
+
+  return result.status ?? true;
+}
+
+export async function deleteForumPost(token: string, postId: number) {
+  const result = await moodleRequest<{
+    status?: boolean;
+    warnings?: Array<{ message?: string }>;
+  }>(token, "mod_forum_delete_post", {
+    postid: String(postId),
+  });
+
+  const warningMessage = getFirstWarningMessage(result.warnings);
+
+  if (warningMessage) {
+    throw new MoodleApiError(warningMessage, "forum_delete_post_warning");
+  }
+
+  return result.status ?? true;
 }
 
 function withToken(url: string, token: string) {
@@ -2018,6 +2133,51 @@ type RawMoodleAssignment = {
   submissiondrafts?: number;
 };
 
+type RawMoodleAssignmentSubmissionFile = {
+  filepath?: string;
+  fileurl?: string;
+};
+
+type RawMoodleAssignmentSubmissionFileArea = {
+  area?: string;
+  files?: RawMoodleAssignmentSubmissionFile[];
+};
+
+type RawMoodleAssignmentSubmissionEditorField = {
+  name?: string;
+  description?: string;
+  text?: string;
+  format?: number;
+};
+
+type RawMoodleAssignmentSubmissionPlugin = {
+  type?: string;
+  name?: string;
+  fileareas?: RawMoodleAssignmentSubmissionFileArea[];
+  editorfields?: RawMoodleAssignmentSubmissionEditorField[];
+};
+
+type RawMoodleAssignmentSubmission = {
+  id: number;
+  userid: number;
+  attemptnumber?: number;
+  timecreated?: number;
+  timemodified?: number;
+  status?: string;
+  groupid?: number;
+  plugins?: RawMoodleAssignmentSubmissionPlugin[];
+};
+
+type RawMoodleAssignmentGrade = {
+  id: number;
+  userid: number;
+  grader?: number;
+  grade?: string;
+  attemptnumber?: number;
+  timecreated?: number;
+  timemodified?: number;
+};
+
 export type MoodleAssignment = {
   id: number;
   courseModuleId: number;
@@ -2057,6 +2217,41 @@ export type MoodleSubmissionStatus = {
   isGraded: boolean;
   gradingStatus?: string;
   gradeDisplay?: string;
+};
+
+export type MoodleAssignmentSubmissionRecord = {
+  id: number;
+  userId: number;
+  userFullName?: string;
+  userPictureUrl?: string;
+  status: "draft" | "submitted" | "new";
+  attemptNumber: number;
+  timeCreated?: number;
+  timeModified?: number;
+  groupId?: number;
+  onlineText?: string;
+  fileCount: number;
+};
+
+export type MoodleAssignmentGradeRecord = {
+  id: number;
+  userId: number;
+  graderId?: number;
+  graderFullName?: string;
+  attemptNumber: number;
+  grade?: string;
+  timeCreated?: number;
+  timeModified?: number;
+};
+
+type RawMoodleAssignmentGradeSaveResponse = {
+  status?: boolean;
+  warnings?: Array<{
+    item?: string;
+    itemid?: number;
+    warningcode?: string;
+    message?: string;
+  }>;
 };
 
 export async function getAssignments(
@@ -2121,6 +2316,162 @@ export async function getSubmissionStatus(
     gradingStatus: result.lastattempt?.gradingstatus || undefined,
     gradeDisplay: result.feedback?.gradefordisplay || undefined,
   };
+}
+
+export async function getAssignmentSubmissions(
+  token: string,
+  assignId: number
+): Promise<MoodleAssignmentSubmissionRecord[]> {
+  const result = await moodleRequest<{
+    assignments?: Array<{
+      assignmentid?: number;
+      submissions?: RawMoodleAssignmentSubmission[];
+    }>;
+  }>(token, "mod_assign_get_submissions", {
+    "assignmentids[0]": String(assignId),
+  });
+
+  const submissions =
+    (result.assignments || []).find(
+      (assignment) => assignment.assignmentid === assignId
+    )?.submissions || [];
+
+  const usersById = await getUsersById(
+    token,
+    submissions.map((submission) => submission.userid)
+  ).catch(() => new Map<number, { fullName?: string; pictureUrl?: string }>());
+
+  return submissions
+    .map((submission) => {
+      const user = usersById.get(submission.userid);
+      const fileCount = (submission.plugins || []).reduce((total, plugin) => {
+        return (
+          total +
+          (plugin.fileareas || []).reduce((pluginTotal, area) => {
+            return pluginTotal + (area.files || []).length;
+          }, 0)
+        );
+      }, 0);
+
+      const onlineText = (submission.plugins || [])
+        .flatMap((plugin) => plugin.editorfields || [])
+        .map((field) => field.text?.trim() || "")
+        .find(Boolean);
+
+      let status: MoodleAssignmentSubmissionRecord["status"] = "new";
+      if (submission.status === "submitted") {
+        status = "submitted";
+      } else if (submission.status === "draft") {
+        status = "draft";
+      }
+
+      return {
+        id: submission.id,
+        userId: submission.userid,
+        userFullName: user?.fullName,
+        userPictureUrl: user?.pictureUrl,
+        status,
+        attemptNumber: submission.attemptnumber ?? 0,
+        timeCreated: submission.timecreated || undefined,
+        timeModified: submission.timemodified || undefined,
+        groupId: submission.groupid || undefined,
+        onlineText: onlineText || undefined,
+        fileCount,
+      } satisfies MoodleAssignmentSubmissionRecord;
+    })
+    .sort((a, b) => (b.timeModified || 0) - (a.timeModified || 0));
+}
+
+export async function getAssignmentGrades(
+  token: string,
+  assignId: number
+): Promise<MoodleAssignmentGradeRecord[]> {
+  const result = await moodleRequest<{
+    assignments?: Array<{
+      assignmentid?: number;
+      grades?: RawMoodleAssignmentGrade[];
+    }>;
+    warnings?: Array<{
+      item?: string;
+      itemid?: number;
+      warningcode?: string;
+      message?: string;
+    }>;
+  }>(token, "mod_assign_get_grades", {
+    "assignmentids[0]": String(assignId),
+    since: "0",
+  });
+
+  const grades =
+    (result.assignments || []).find(
+      (assignment) => assignment.assignmentid === assignId
+    )?.grades || [];
+
+  const gradersById = await getUsersById(
+    token,
+    grades.map((grade) => grade.grader ?? 0)
+  ).catch(() => new Map<number, { fullName?: string; pictureUrl?: string }>());
+
+  return grades
+    .map((grade) => {
+      const grader = grade.grader ? gradersById.get(grade.grader) : undefined;
+
+      return {
+        id: grade.id,
+        userId: grade.userid,
+        graderId: grade.grader || undefined,
+        graderFullName: grader?.fullName,
+        attemptNumber: grade.attemptnumber ?? 0,
+        grade: grade.grade?.trim() || undefined,
+        timeCreated: grade.timecreated || undefined,
+        timeModified: grade.timemodified || undefined,
+      } satisfies MoodleAssignmentGradeRecord;
+    })
+    .sort((a, b) => (b.timeModified || 0) - (a.timeModified || 0));
+}
+
+export async function saveAssignmentGrade(
+  token: string,
+  params: {
+    assignId: number;
+    userId: number;
+    grade: string;
+    feedbackHtml?: string;
+    attemptNumber?: number;
+  }
+) {
+  const requestParams: Record<string, string> = {
+    assignmentid: String(params.assignId),
+    applytoall: "0",
+    "grades[0][userid]": String(params.userId),
+    "grades[0][grade]": params.grade,
+    "grades[0][attemptnumber]": String(params.attemptNumber ?? -1),
+    "grades[0][addattempt]": "0",
+    "grades[0][workflowstate]": "",
+    "grades[0][plugindata][files_filemanager]": "0",
+  };
+
+  if (params.feedbackHtml) {
+    requestParams["grades[0][plugindata][assignfeedbackcomments_editor][text]"] =
+      params.feedbackHtml;
+    requestParams[
+      "grades[0][plugindata][assignfeedbackcomments_editor][format]"
+    ] = "1";
+  }
+
+  const result = await moodleRequest<RawMoodleAssignmentGradeSaveResponse>(
+    token,
+    "mod_assign_save_grades",
+    requestParams
+  );
+
+  const warningMessage = getFirstWarningMessage(result.warnings);
+
+  if (warningMessage) {
+    throw new MoodleApiError(warningMessage, "assignment_grade_save_warning");
+  }
+
+  return result.status ?? true;
 }
 
 // ---------------------------------------------------------------------------
@@ -3389,7 +3740,7 @@ export async function getH5PActivitiesByCourses(
 
   const result = await moodleRequest<{
     h5pactivities?: RawMoodleH5P[];
-  }>(token, "mod_h5p_get_h5pactivities_by_courses", params);
+  }>(token, "mod_h5pactivity_get_h5pactivities_by_courses", params);
 
   return (result.h5pactivities || []).map((h) => ({
     id: h.id,
@@ -3405,14 +3756,15 @@ export async function getH5PAttempts(
   h5pId: number
 ): Promise<MoodleH5PAttempt[]> {
   const result = await moodleRequest<{
+    attempts?: RawMoodleH5PAttempt[];
     usersattempts?: Array<{
       attempts?: RawMoodleH5PAttempt[];
     }>;
-  }>(token, "mod_h5p_get_h5pactivity_attempts", {
+  }>(token, "mod_h5pactivity_get_attempts", {
     h5pactivityid: String(h5pId),
   });
 
-  const attempts = result.usersattempts?.[0]?.attempts || [];
+  const attempts = result.attempts || result.usersattempts?.[0]?.attempts || [];
 
   return attempts.map((a) => ({
     id: a.id,
@@ -3753,87 +4105,6 @@ export async function getWorkshopSubmissions(
 // Chat
 // ---------------------------------------------------------------------------
 
-type RawMoodleChat = {
-  id: number;
-  coursemodule: number;
-  course: number;
-  name: string;
-  intro?: string;
-  chattime?: number;
-};
-
-type RawMoodleChatMessage = {
-  id: number;
-  userid: number;
-  userfullname?: string;
-  message?: string;
-  timestamp?: number;
-  system?: boolean;
-};
-
-export type MoodleChat = {
-  id: number;
-  courseModuleId: number;
-  courseId: number;
-  name: string;
-  intro?: string;
-  chatTime?: number;
-};
-
-export type MoodleChatMessage = {
-  id: number;
-  userId: number;
-  authorName?: string;
-  message: string;
-  timestamp?: number;
-  isSystem: boolean;
-};
-
-export async function getChatsByCourses(
-  token: string,
-  courseIds: number[]
-): Promise<MoodleChat[]> {
-  const params: Record<string, string> = {};
-  courseIds.forEach((id, i) => {
-    params[`courseids[${i}]`] = String(id);
-  });
-
-  const result = await moodleRequest<{ chats?: RawMoodleChat[] }>(
-    token,
-    "mod_chat_get_chats_by_courses",
-    params
-  );
-
-  return (result.chats || []).map((c) => ({
-    id: c.id,
-    courseModuleId: c.coursemodule,
-    courseId: c.course,
-    name: c.name,
-    intro: c.intro || undefined,
-    chatTime: c.chattime || undefined,
-  }));
-}
-
-export async function getChatLatestMessages(
-  token: string,
-  chatSessionId: number
-): Promise<MoodleChatMessage[]> {
-  const result = await moodleRequest<{
-    messages?: RawMoodleChatMessage[];
-  }>(token, "mod_chat_get_chat_latest_messages", {
-    chatsid: String(chatSessionId),
-  });
-
-  return (result.messages || []).map((m) => ({
-    id: m.id,
-    userId: m.userid,
-    authorName: m.userfullname || undefined,
-    message: m.message || "",
-    timestamp: m.timestamp || undefined,
-    isSystem: m.system ?? false,
-  }));
-}
-
 // ---------------------------------------------------------------------------
 // LTI (external tools)
 // ---------------------------------------------------------------------------
@@ -4004,14 +4275,6 @@ type RawMoodleCourseCompetency = {
   coursemodulecount?: number;
 };
 
-type RawMoodleUserCompetencyInCourse = {
-  usercompetency?: {
-    competencyid: number;
-    grade?: number;
-    proficiency?: boolean;
-  };
-};
-
 export type MoodleCourseCompetency = {
   id: number;
   shortName: string;
@@ -4051,9 +4314,20 @@ export async function getUserCompetencyInCourse(
   userId: number,
   competencyId: number
 ): Promise<MoodleUserCompetencyStatus> {
-  const result = await moodleRequest<RawMoodleUserCompetencyInCourse>(
+  const result = await moodleRequest<{
+    usercompetency?: {
+      competencyid?: number;
+      grade?: number;
+      proficiency?: boolean;
+    };
+    usercompetencycourse?: {
+      grade?: number;
+      proficiency?: boolean;
+    };
+    proficiency?: boolean;
+  }>(
     token,
-    "core_competency_get_user_competency_in_course",
+    "tool_lp_data_for_user_competency_summary_in_course",
     {
       courseid: String(courseId),
       userid: String(userId),
@@ -4063,8 +4337,15 @@ export async function getUserCompetencyInCourse(
 
   return {
     competencyId,
-    grade: result.usercompetency?.grade ?? undefined,
-    proficient: result.usercompetency?.proficiency ?? false,
+    grade:
+      result.usercompetency?.grade ??
+      result.usercompetencycourse?.grade ??
+      undefined,
+    proficient:
+      result.usercompetency?.proficiency ??
+      result.usercompetencycourse?.proficiency ??
+      result.proficiency ??
+      false,
   };
 }
 
@@ -4743,8 +5024,12 @@ export async function markAllNotificationsAsRead(
 ): Promise<void> {
   await moodleRequest<unknown>(
     token,
-    "message_popup_mark_all_notifications_as_read",
-    { useridto: String(userId) }
+    "core_message_mark_all_notifications_as_read",
+    {
+      useridto: String(userId),
+      useridfrom: "0",
+      timecreatedto: "0",
+    }
   );
 }
 
@@ -4766,84 +5051,6 @@ export async function markMessageRead(
 // Surveys (COLLES/ATTLS)
 // ---------------------------------------------------------------------------
 
-type RawMoodleSurvey = {
-  id: number;
-  coursemodule: number;
-  course: number;
-  name: string;
-  intro?: string;
-  template?: number;
-  days?: number;
-};
-
-type RawMoodleSurveyQuestion = {
-  id: number;
-  text?: string;
-  shorttext?: string;
-  type?: number;
-  options?: string;
-  multi?: string;
-};
-
-export type MoodleSurvey = {
-  id: number;
-  courseModuleId: number;
-  courseId: number;
-  name: string;
-  intro?: string;
-};
-
-export type MoodleSurveyQuestion = {
-  id: number;
-  text: string;
-  shortText?: string;
-  type: number;
-  options: string[];
-};
-
-export async function getSurveysByCourses(
-  token: string,
-  courseIds: number[]
-): Promise<MoodleSurvey[]> {
-  const params: Record<string, string> = {};
-  courseIds.forEach((id, i) => {
-    params[`courseids[${i}]`] = String(id);
-  });
-
-  const result = await moodleRequest<{ surveys?: RawMoodleSurvey[] }>(
-    token,
-    "mod_survey_get_surveys_by_courses",
-    params
-  );
-
-  return (result.surveys || []).map((s) => ({
-    id: s.id,
-    courseModuleId: s.coursemodule,
-    courseId: s.course,
-    name: s.name,
-    intro: s.intro || undefined,
-  }));
-}
-
-export async function getSurveyQuestions(
-  token: string,
-  surveyId: number
-): Promise<MoodleSurveyQuestion[]> {
-  const result = await moodleRequest<{
-    questions?: RawMoodleSurveyQuestion[];
-  }>(token, "mod_survey_get_questions", {
-    surveyid: String(surveyId),
-  });
-
-  return (result.questions || []).map((q) => ({
-    id: q.id,
-    text: q.text || "",
-    shortText: q.shorttext || undefined,
-    type: q.type ?? 0,
-    options: q.options ? q.options.split(",").map((o) => o.trim()) : [],
-  }));
-}
-
 // ---------------------------------------------------------------------------
 // Contacts
 // ---------------------------------------------------------------------------
@@ -4862,14 +5069,22 @@ export type MoodleContact = {
 };
 
 export async function getContacts(
-  token: string
+  token: string,
+  userId: number
 ): Promise<MoodleContact[]> {
   const result = await moodleRequest<{
+    contacts?: RawMoodleContact[];
     online?: RawMoodleContact[];
     offline?: RawMoodleContact[];
-  }>(token, "core_message_get_contacts", {});
+  }>(token, "core_message_get_user_contacts", {
+    userid: String(userId),
+    limitfrom: "0",
+    limitnum: "0",
+  });
 
-  const all = [...(result.online || []), ...(result.offline || [])];
+  const all =
+    result.contacts ||
+    [...(result.online || []), ...(result.offline || [])];
 
   return all.map((c) => ({
     id: c.id,
@@ -4883,10 +5098,14 @@ export async function addContact(
   userId: number,
   contactId: number
 ): Promise<void> {
-  await moodleRequest<unknown>(token, "core_message_create_contacts", {
-    userid: String(userId),
-    "userids[0]": String(contactId),
-  });
+  await moodleRequest<unknown>(
+    token,
+    "core_message_create_contact_request",
+    {
+      userid: String(userId),
+      requesteduserid: String(contactId),
+    }
+  );
 }
 
 export function isAuthenticationError(error: unknown) {
@@ -4921,5 +5140,553 @@ export function isAccessException(error: unknown) {
     code === "accessexception" ||
     message.includes("accessexception") ||
     message.includes("control de acceso")
+  );
+}
+
+// ─── Admin: Types ──────────────────────────────────────────────────────────────
+
+type RawAdminUser = {
+  id: number;
+  username?: string;
+  firstname?: string;
+  lastname?: string;
+  fullname?: string;
+  email?: string;
+  department?: string;
+  institution?: string;
+  city?: string;
+  country?: string;
+  profileimageurl?: string;
+  suspended?: boolean;
+  confirmed?: boolean;
+  auth?: string;
+  timecreated?: number;
+  lastaccess?: number;
+  description?: string;
+};
+
+export type AdminUser = {
+  id: number;
+  username: string;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department?: string;
+  institution?: string;
+  city?: string;
+  country?: string;
+  pictureUrl?: string;
+  suspended: boolean;
+  confirmed: boolean;
+  auth?: string;
+  timeCreated?: number;
+  lastAccess?: number;
+  description?: string;
+};
+
+function normalizeAdminUser(u: RawAdminUser): AdminUser {
+  return {
+    id: u.id,
+    username: u.username ?? "",
+    fullName: u.fullname ?? `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim(),
+    firstName: u.firstname ?? "",
+    lastName: u.lastname ?? "",
+    email: u.email ?? "",
+    department: u.department,
+    institution: u.institution,
+    city: u.city,
+    country: u.country,
+    pictureUrl: u.profileimageurl,
+    suspended: u.suspended ?? false,
+    confirmed: u.confirmed ?? true,
+    auth: u.auth,
+    timeCreated: u.timecreated,
+    lastAccess: u.lastaccess,
+    description: u.description,
+  };
+}
+
+type RawAdminCourse = {
+  id: number;
+  shortname?: string;
+  fullname?: string;
+  displayname?: string;
+  summary?: string;
+  categoryid?: number;
+  categoryname?: string;
+  visible?: number;
+  startdate?: number;
+  enddate?: number;
+  enrolledusercount?: number;
+  timecreated?: number;
+  format?: string;
+};
+
+export type AdminCourse = {
+  id: number;
+  shortname: string;
+  fullname: string;
+  displayname?: string;
+  summary?: string;
+  categoryId?: number;
+  categoryName?: string;
+  visible: boolean;
+  startDate?: number;
+  endDate?: number;
+  enrolledUserCount?: number;
+  timeCreated?: number;
+  format?: string;
+};
+
+function normalizeAdminCourse(c: RawAdminCourse): AdminCourse {
+  return {
+    id: c.id,
+    shortname: c.shortname ?? "",
+    fullname: c.fullname ?? "",
+    displayname: c.displayname,
+    summary: c.summary,
+    categoryId: c.categoryid,
+    categoryName: c.categoryname,
+    visible: (c.visible ?? 1) === 1,
+    startDate: c.startdate,
+    endDate: c.enddate,
+    enrolledUserCount: c.enrolledusercount,
+    timeCreated: c.timecreated,
+    format: c.format,
+  };
+}
+
+type RawMoodleCohort = {
+  id: number;
+  name?: string;
+  idnumber?: string;
+  description?: string;
+  visible?: boolean;
+  contextid?: number;
+  timecreated?: number;
+  timemodified?: number;
+};
+
+export type MoodleCohort = {
+  id: number;
+  name: string;
+  idNumber?: string;
+  description?: string;
+  visible: boolean;
+  contextId?: number;
+  timeCreated?: number;
+  timeModified?: number;
+};
+
+function normalizeCohort(c: RawMoodleCohort): MoodleCohort {
+  return {
+    id: c.id,
+    name: c.name ?? "",
+    idNumber: c.idnumber,
+    description: c.description,
+    visible: c.visible ?? true,
+    contextId: c.contextid,
+    timeCreated: c.timecreated,
+    timeModified: c.timemodified,
+  };
+}
+
+export type CreateUserInput = {
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  auth?: string;
+  department?: string;
+  institution?: string;
+  description?: string;
+  city?: string;
+  country?: string;
+};
+
+export type UpdateUserInput = {
+  id: number;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  department?: string;
+  institution?: string;
+  description?: string;
+  city?: string;
+  country?: string;
+  suspended?: boolean;
+};
+
+export type CreateCourseInput = {
+  fullname: string;
+  shortname: string;
+  categoryId: number;
+  summary?: string;
+  visible?: boolean;
+  startDate?: number;
+  endDate?: number;
+  format?: string;
+};
+
+export type UpdateCourseInput = {
+  id: number;
+  fullname?: string;
+  shortname?: string;
+  summary?: string;
+  visible?: boolean;
+  startDate?: number;
+  endDate?: number;
+};
+
+export type CreateCohortInput = {
+  name: string;
+  idNumber?: string;
+  description?: string;
+  visible?: boolean;
+  contextLevel?: string;
+  instanceId?: number;
+};
+
+export type UpdateCohortInput = {
+  id: number;
+  name?: string;
+  idNumber?: string;
+  description?: string;
+  visible?: boolean;
+};
+
+// ─── Admin: User management ────────────────────────────────────────────────────
+
+export async function adminSearchUsers(
+  token: string,
+  criteria: Array<{ key: string; value: string }>
+): Promise<AdminUser[]> {
+  const params: Record<string, string> = {};
+  criteria.forEach((c, i) => {
+    params[`criteria[${i}][key]`] = c.key;
+    params[`criteria[${i}][value]`] = c.value;
+  });
+  const response = await moodleRequest<{ users: RawAdminUser[] }>(
+    token,
+    "core_user_get_users",
+    params
+  );
+  return (response.users ?? []).map(normalizeAdminUser);
+}
+
+export async function adminCreateUser(
+  token: string,
+  input: CreateUserInput
+): Promise<{ id: number; username: string }> {
+  const params: Record<string, string> = {
+    "users[0][username]": input.username,
+    "users[0][password]": input.password,
+    "users[0][firstname]": input.firstName,
+    "users[0][lastname]": input.lastName,
+    "users[0][email]": input.email,
+    "users[0][auth]": input.auth ?? "manual",
+  };
+  if (input.department) params["users[0][department]"] = input.department;
+  if (input.institution) params["users[0][institution]"] = input.institution;
+  if (input.description) params["users[0][description]"] = input.description;
+  if (input.city) params["users[0][city]"] = input.city;
+  if (input.country) params["users[0][country]"] = input.country;
+  const response = await moodleRequest<Array<{ id: number; username: string }>>(
+    token,
+    "core_user_create_users",
+    params
+  );
+  return response[0];
+}
+
+export async function adminUpdateUser(
+  token: string,
+  input: UpdateUserInput
+): Promise<void> {
+  const params: Record<string, string> = {
+    "users[0][id]": String(input.id),
+  };
+  if (input.firstName !== undefined) params["users[0][firstname]"] = input.firstName;
+  if (input.lastName !== undefined) params["users[0][lastname]"] = input.lastName;
+  if (input.email !== undefined) params["users[0][email]"] = input.email;
+  if (input.department !== undefined) params["users[0][department]"] = input.department;
+  if (input.institution !== undefined) params["users[0][institution]"] = input.institution;
+  if (input.description !== undefined) params["users[0][description]"] = input.description;
+  if (input.city !== undefined) params["users[0][city]"] = input.city;
+  if (input.country !== undefined) params["users[0][country]"] = input.country;
+  if (input.suspended !== undefined) params["users[0][suspended]"] = input.suspended ? "1" : "0";
+  await moodleRequest<unknown>(token, "core_user_update_users", params);
+}
+
+export async function adminDeleteUser(
+  token: string,
+  userId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_user_delete_users", {
+    "userids[0]": String(userId),
+  });
+}
+
+// ─── Admin: Course management ──────────────────────────────────────────────────
+
+export async function adminGetCourses(
+  token: string,
+  courseIds?: number[]
+): Promise<AdminCourse[]> {
+  const params: Record<string, string> = {};
+  if (courseIds && courseIds.length > 0) {
+    courseIds.forEach((id, i) => {
+      params[`options[ids][${i}]`] = String(id);
+    });
+  }
+  const response = await moodleRequest<RawAdminCourse[]>(
+    token,
+    "core_course_get_courses",
+    params
+  );
+  return (response ?? [])
+    .filter((c) => c.id !== 1) // exclude site front page (id=1)
+    .map(normalizeAdminCourse);
+}
+
+export async function adminCreateCourse(
+  token: string,
+  input: CreateCourseInput
+): Promise<{ id: number; shortname: string }> {
+  const params: Record<string, string> = {
+    "courses[0][fullname]": input.fullname,
+    "courses[0][shortname]": input.shortname,
+    "courses[0][categoryid]": String(input.categoryId),
+    "courses[0][visible]": input.visible === false ? "0" : "1",
+    "courses[0][format]": input.format ?? "topics",
+  };
+  if (input.summary) params["courses[0][summary]"] = input.summary;
+  if (input.startDate) params["courses[0][startdate]"] = String(input.startDate);
+  if (input.endDate) params["courses[0][enddate]"] = String(input.endDate);
+  const response = await moodleRequest<Array<{ id: number; shortname: string }>>(
+    token,
+    "core_course_create_courses",
+    params
+  );
+  return response[0];
+}
+
+export async function adminUpdateCourse(
+  token: string,
+  input: UpdateCourseInput
+): Promise<void> {
+  const params: Record<string, string> = {
+    "courses[0][id]": String(input.id),
+  };
+  if (input.fullname !== undefined) params["courses[0][fullname]"] = input.fullname;
+  if (input.shortname !== undefined) params["courses[0][shortname]"] = input.shortname;
+  if (input.summary !== undefined) params["courses[0][summary]"] = input.summary;
+  if (input.visible !== undefined) params["courses[0][visible]"] = input.visible ? "1" : "0";
+  if (input.startDate !== undefined) params["courses[0][startdate]"] = String(input.startDate);
+  if (input.endDate !== undefined) params["courses[0][enddate]"] = String(input.endDate);
+  await moodleRequest<unknown>(token, "core_course_update_courses", params);
+}
+
+export async function adminDeleteCourse(
+  token: string,
+  courseId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_course_delete_courses", {
+    "courseids[0]": String(courseId),
+  });
+}
+
+// ─── Admin: Enrollment management ─────────────────────────────────────────────
+
+export type EnrolledUserAdmin = {
+  id: number;
+  username?: string;
+  fullName: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  pictureUrl?: string;
+  roles: Array<{ roleId?: number; name: string; shortName?: string }>;
+  lastAccess?: number;
+};
+
+export async function adminGetEnrolledUsers(
+  token: string,
+  courseId: number
+): Promise<EnrolledUserAdmin[]> {
+  type RawEnrolled = {
+    id: number;
+    username?: string;
+    fullname?: string;
+    firstname?: string;
+    lastname?: string;
+    email?: string;
+    profileimageurl?: string;
+    roles?: Array<{ roleid?: number; name?: string; shortname?: string }>;
+    lastaccess?: number;
+  };
+  const response = await moodleRequest<RawEnrolled[]>(
+    token,
+    "core_enrol_get_enrolled_users",
+    { courseid: String(courseId) }
+  );
+  return (response ?? []).map((u) => ({
+    id: u.id,
+    username: u.username,
+    fullName: u.fullname ?? `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim(),
+    firstName: u.firstname,
+    lastName: u.lastname,
+    email: u.email,
+    pictureUrl: u.profileimageurl,
+    roles: (u.roles ?? []).map((r) => ({
+      roleId: r.roleid,
+      name: r.name ?? "",
+      shortName: r.shortname,
+    })),
+    lastAccess: u.lastaccess,
+  }));
+}
+
+export async function adminEnrolUser(
+  token: string,
+  params: {
+    userId: number;
+    courseId: number;
+    roleId?: number;
+    timeStart?: number;
+    timeEnd?: number;
+  }
+): Promise<void> {
+  const p: Record<string, string> = {
+    "enrolments[0][roleid]": String(params.roleId ?? 5),
+    "enrolments[0][userid]": String(params.userId),
+    "enrolments[0][courseid]": String(params.courseId),
+  };
+  if (params.timeStart) p["enrolments[0][timestart]"] = String(params.timeStart);
+  if (params.timeEnd) p["enrolments[0][timeend]"] = String(params.timeEnd);
+  await moodleRequest<unknown>(token, "enrol_manual_enrol_users", p);
+}
+
+export async function adminUnenrolUser(
+  token: string,
+  params: { userId: number; courseId: number }
+): Promise<void> {
+  await moodleRequest<unknown>(token, "enrol_manual_unenrol_users", {
+    "enrolments[0][userid]": String(params.userId),
+    "enrolments[0][courseid]": String(params.courseId),
+  });
+}
+
+// ─── Admin: Cohort management ──────────────────────────────────────────────────
+
+export async function adminGetCohorts(
+  token: string,
+  cohortIds?: number[]
+): Promise<MoodleCohort[]> {
+  const params: Record<string, string> = {};
+  if (cohortIds && cohortIds.length > 0) {
+    cohortIds.forEach((id, i) => {
+      params[`cohortids[${i}]`] = String(id);
+    });
+  }
+  const response = await moodleRequest<RawMoodleCohort[]>(
+    token,
+    "core_cohort_get_cohorts",
+    params
+  );
+  return (response ?? []).map(normalizeCohort);
+}
+
+export async function adminCreateCohort(
+  token: string,
+  input: CreateCohortInput
+): Promise<{ id: number; name: string }> {
+  const params: Record<string, string> = {
+    "cohorts[0][name]": input.name,
+    "cohorts[0][contextlevel]": input.contextLevel ?? "system",
+    "cohorts[0][instanceid]": String(input.instanceId ?? 0),
+    "cohorts[0][visible]": input.visible === false ? "0" : "1",
+  };
+  if (input.idNumber) params["cohorts[0][idnumber]"] = input.idNumber;
+  if (input.description) params["cohorts[0][description]"] = input.description;
+  const response = await moodleRequest<Array<{ id: number; name: string }>>(
+    token,
+    "core_cohort_create_cohorts",
+    params
+  );
+  return response[0];
+}
+
+export async function adminUpdateCohort(
+  token: string,
+  input: UpdateCohortInput
+): Promise<void> {
+  const params: Record<string, string> = {
+    "cohorts[0][id]": String(input.id),
+  };
+  if (input.name !== undefined) params["cohorts[0][name]"] = input.name;
+  if (input.idNumber !== undefined) params["cohorts[0][idnumber]"] = input.idNumber;
+  if (input.description !== undefined) params["cohorts[0][description]"] = input.description;
+  if (input.visible !== undefined) params["cohorts[0][visible]"] = input.visible ? "1" : "0";
+  await moodleRequest<unknown>(token, "core_cohort_update_cohorts", params);
+}
+
+export async function adminDeleteCohort(
+  token: string,
+  cohortId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_cohort_delete_cohorts", {
+    "cohortids[0]": String(cohortId),
+  });
+}
+
+export async function adminGetCohortMembers(
+  token: string,
+  cohortId: number
+): Promise<number[]> {
+  type RawCohortMembers = Array<{ cohortid: number; userids: number[] }>;
+  const response = await moodleRequest<RawCohortMembers>(
+    token,
+    "core_cohort_get_cohort_members",
+    { "cohortids[0]": String(cohortId) }
+  );
+  return response?.[0]?.userids ?? [];
+}
+
+export async function adminAddCohortMember(
+  token: string,
+  cohortId: number,
+  userId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_cohort_add_cohort_members", {
+    "members[0][cohortid]": String(cohortId),
+    "members[0][userid]": String(userId),
+  });
+}
+
+export async function adminRemoveCohortMember(
+  token: string,
+  cohortId: number,
+  userId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_cohort_delete_cohort_members", {
+    "members[0][cohortid]": String(cohortId),
+    "members[0][userid]": String(userId),
+  });
+}
+
+export async function requestPasswordReset(
+  usernameOrEmail: string
+): Promise<void> {
+  const token = getServerMoodleToken();
+  const param: Record<string, string> = usernameOrEmail.includes("@")
+    ? { email: usernameOrEmail }
+    : { username: usernameOrEmail };
+  await moodleRequest<{ status: string; notice: string }>(
+    token,
+    "core_auth_request_password_reset",
+    param
   );
 }

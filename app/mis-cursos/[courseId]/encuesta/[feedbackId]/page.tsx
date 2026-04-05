@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
@@ -37,20 +36,20 @@ function statusBadge(feedback: MoodleFeedback) {
   if (feedback.isAlreadySubmitted) {
     return {
       label: "Completada",
-      className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+      className: "border-[var(--success-soft)] bg-[var(--success-soft)] text-[var(--success)]",
     };
   }
 
   if (feedback.isOpen) {
     return {
       label: "Abierta",
-      className: "border-amber-400/20 bg-amber-400/10 text-amber-400",
+      className: "border-[var(--warning-soft)] bg-[var(--warning-soft)] text-[var(--warning)]",
     };
   }
 
   return {
     label: "Cerrada",
-    className: "border-white/10 bg-white/4 text-[var(--color-muted)]",
+    className: "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--color-muted)]",
   };
 }
 
@@ -149,9 +148,7 @@ export default async function FeedbackDetailPage({
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Encuesta"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 
@@ -256,7 +253,7 @@ export default async function FeedbackDetailPage({
                       key={item.id}
                       className="flex items-start gap-3 rounded-lg px-4 py-3"
                     >
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs font-semibold text-[var(--color-muted)]">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-strong)] text-xs font-semibold text-[var(--color-muted)]">
                         {index + 1}
                       </span>
                       <div className="flex flex-col gap-0.5">

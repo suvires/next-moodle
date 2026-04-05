@@ -6,7 +6,11 @@ import { RichHtml } from "@/app/components/rich-html";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
-import { getNotifications, isAuthenticationError } from "@/lib/moodle";
+import {
+  getUnsupportedMoodleFeatureMessage,
+  resolveMoodleFeatureSupport,
+} from "@/lib/moodle-feature-support";
+import { getNotifications, getSiteInfo, isAuthenticationError } from "@/lib/moodle";
 import { getSession } from "@/lib/session";
 
 function formatTime(timestamp: number): string {
@@ -26,9 +30,16 @@ export default async function NotificationsPage() {
   let notifications: Awaited<ReturnType<typeof getNotifications>> = [];
   let errorMessage: string | null = null;
   let expiredSession = false;
+  let supportsMarkAllRead = false;
 
   try {
-    notifications = await getNotifications(session.token, session.userId);
+    const [siteInfo, notificationsResult] = await Promise.all([
+      getSiteInfo(session.token),
+      getNotifications(session.token, session.userId),
+    ]);
+    notifications = notificationsResult;
+    supportsMarkAllRead =
+      resolveMoodleFeatureSupport(siteInfo.functions).notificationsMarkAllRead;
   } catch (error) {
     expiredSession = isAuthenticationError(error);
     logger.error("Notifications load failed", {
@@ -51,7 +62,7 @@ export default async function NotificationsPage() {
           <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
             Notificaciones
           </h1>
-          {notifications.some((n) => !n.isRead) ? (
+          {supportsMarkAllRead && notifications.some((n) => !n.isRead) ? (
             <form action={markAllNotificationsReadAction}>
               <Button variant="ghost" size="sm">
                 Marcar todo como leído
@@ -71,6 +82,12 @@ export default async function NotificationsPage() {
             {expiredSession ? (
               <p className="mt-1 opacity-80">Vuelve a iniciar sesión.</p>
             ) : null}
+          </div>
+        ) : null}
+
+        {!supportsMarkAllRead ? (
+          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/5 px-4 py-3 text-sm text-[var(--color-warning)]">
+            {getUnsupportedMoodleFeatureMessage("notificationsMarkAllRead")}
           </div>
         ) : null}
 

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
 import {
@@ -299,9 +298,7 @@ export default async function ScormPage({ params }: ScormPageProps) {
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Contenido interactivo"
           actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver al curso</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="outline" size="sm">Volver al curso</LinkButton>
           }
         />
 
@@ -363,11 +360,7 @@ export default async function ScormPage({ params }: ScormPageProps) {
 
                 {launchUrl ? (
                   <div className="flex flex-wrap gap-3 md:justify-end">
-                    <Button asChild variant="outline" size="sm">
-                      <a href={launchUrl} target="_blank" rel="noreferrer">
-                        Abrir aparte
-                      </a>
-                    </Button>
+                    <LinkButton as="a" href={launchUrl} target="_blank" rel="noreferrer" variant="outline" size="sm">Abrir aparte</LinkButton>
                   </div>
                 ) : null}
               </CardContent>

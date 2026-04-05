@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
@@ -133,9 +132,7 @@ export default async function BookPage({ params }: BookPageProps) {
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Libro"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 
@@ -206,15 +203,7 @@ export default async function BookPage({ params }: BookPageProps) {
                         </p>
                       </div>
                       {proxiedUrl ? (
-                        <Button asChild size="sm" variant="outline">
-                          <a
-                            href={proxiedUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Abrir
-                          </a>
-                        </Button>
+                        <LinkButton as="a" href={proxiedUrl} target="_blank" rel="noreferrer" size="sm" variant="outline">Abrir</LinkButton>
                       ) : null}
                     </div>
                   );

@@ -1,50 +1,46 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
+import Link from "next/link";
+import { buttonVariants } from "@heroui/styles";
 import { cn } from "@/lib/utils";
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  asChild?: boolean;
-  variant?: "default" | "primary" | "outline" | "ghost" | "danger";
-  size?: "default" | "sm" | "lg";
+export { Button } from "@heroui/react";
+
+type LinkButtonVariant = "primary" | "secondary" | "tertiary" | "outline" | "ghost" | "danger" | "danger-soft";
+type LinkButtonSize = "sm" | "md" | "lg";
+
+type LinkButtonProps = {
+  href: string;
+  variant?: LinkButtonVariant;
+  size?: LinkButtonSize;
+  className?: string;
+  children: React.ReactNode;
+  /** Render as a plain anchor element instead of Next.js Link */
+  as?: "a";
+  target?: string;
+  rel?: string;
+  download?: string | boolean;
 };
 
-const variantStyles: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  default:
-    "bg-[var(--foreground)] text-white hover:opacity-90",
-  primary:
-    "bg-[var(--accent)] text-white hover:bg-[var(--accent-soft)]",
-  outline:
-    "border border-[var(--line-strong)] text-[var(--foreground)] hover:bg-[var(--surface-strong)]",
-  ghost:
-    "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-strong)]",
-  danger:
-    "bg-[var(--danger)] text-white hover:opacity-90",
-};
-
-const sizeStyles: Record<NonNullable<ButtonProps["size"]>, string> = {
-  sm: "h-8 px-3 text-sm rounded-lg",
-  default: "h-10 px-5 text-sm rounded-full",
-  lg: "h-12 px-6 text-base rounded-full",
-};
-
-export function Button({
+export function LinkButton({
+  href,
+  variant = "primary",
+  size = "md",
   className,
-  variant = "default",
-  size = "default",
-  asChild = false,
+  children,
+  as: Comp,
   ...props
-}: ButtonProps) {
-  const Comp = asChild ? Slot : "button";
-
+}: LinkButtonProps) {
+  const classes = buttonVariants({ variant, size });
+  if (Comp === "a") {
+    return (
+      <a href={href} className={cn(classes, className)} {...props}>
+        {children}
+      </a>
+    );
+  }
   return (
-    <Comp
-      className={cn(
-        "inline-flex items-center justify-center font-medium transition duration-150 disabled:pointer-events-none disabled:opacity-40",
-        variantStyles[variant],
-        sizeStyles[size],
-        className
-      )}
-      {...props}
-    />
+    <Link href={href} className={cn(classes, className)} {...(props as Record<string, unknown>)}>
+      {children}
+    </Link>
   );
 }

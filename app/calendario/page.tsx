@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
 import {
@@ -146,16 +145,8 @@ export default async function CalendarPage({
               {MONTH_NAMES[month - 1]} {year}
             </h1>
             <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`/calendario?year=${prevYear}&month=${prevMonth}`}>
-                  Anterior
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`/calendario?year=${nextYear}&month=${nextMonth}`}>
-                  Siguiente
-                </Link>
-              </Button>
+              <LinkButton href={`/calendario?year=${prevYear}&month=${prevMonth}`} variant="ghost" size="sm">Anterior</LinkButton>
+              <LinkButton href={`/calendario?year=${nextYear}&month=${nextMonth}`} variant="ghost" size="sm">Siguiente</LinkButton>
             </div>
           </div>
         </div>

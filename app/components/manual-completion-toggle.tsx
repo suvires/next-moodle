@@ -24,7 +24,7 @@ function SubmitButton({ isCompleted }: { isCompleted: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="outline" size="sm" disabled={pending}>
+    <Button type="submit" variant="outline" size="sm" isDisabled={pending}>
       {pending
         ? "Guardando..."
         : isCompleted

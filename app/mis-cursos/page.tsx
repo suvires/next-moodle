@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
 import { ProgressBar } from "@/app/components/progress-bar";
 import { RichHtml } from "@/app/components/rich-html";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -23,7 +24,7 @@ import {
   type MoodleCourseAccessProfile,
   type MoodleCourseGrade,
 } from "@/lib/moodle";
-import { getCourseRoleLabel } from "@/lib/course-roles";
+import { getCourseRoleLabel, getDashboardQuickActions } from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 function getRoleLabel(role: MoodleAccessProfile["primaryRole"]) {
@@ -82,12 +83,12 @@ function getRoleAccent(profile: MoodleAccessProfile) {
     case "course_manager":
     case "platform_manager":
     case "administrator":
-      return "text-amber-700 bg-amber-500/15";
+      return "text-[var(--warning)] bg-[var(--warning-soft)]";
     case "authenticated_no_courses":
       return "text-[var(--muted)] bg-[var(--surface-strong)]";
     case "student":
     default:
-      return "text-emerald-700 bg-emerald-500/15";
+      return "text-[var(--success)] bg-[var(--success-soft)]";
   }
 }
 
@@ -144,78 +145,6 @@ function getCourseRoleChips(course: MoodleCourseAccessProfile) {
   }
 
   return chips;
-}
-
-function getQuickActionCards(params: {
-  accessProfile: MoodleAccessProfile;
-  primaryTeachingCourse?: MoodleCourseAccessProfile;
-  primaryManagedCourse?: MoodleCourseAccessProfile;
-}) {
-  const { accessProfile, primaryTeachingCourse, primaryManagedCourse } = params;
-  const cards = [
-    {
-      href: "/buscar",
-      title: "Buscar",
-      body: "Localiza contenidos, foros y materiales en todo el campus.",
-    },
-    {
-      href: "/calendario",
-      title: "Calendario",
-      body: "Revisa próximas fechas y actividad planificada.",
-    },
-    {
-      href: "/perfil",
-      title: "Perfil",
-      body: "Consulta tus datos y el resumen general de tu cuenta.",
-    },
-  ];
-
-  if (accessProfile.siteInfo.userCanManageOwnFiles) {
-    cards.push({
-      href: "/archivos",
-      title: "Archivos privados",
-      body: "Accede a tus documentos personales dentro de Moodle.",
-    });
-  } else {
-    cards.push({
-      href: "/ajustes",
-      title: "Ajustes",
-      body: "Gestiona preferencias personales y ajustes de tu cuenta.",
-    });
-  }
-
-  if (primaryTeachingCourse) {
-    cards.push(
-      {
-        href: `/mis-cursos/${primaryTeachingCourse.courseId}`,
-        title: "Curso docente principal",
-        body: `Entra a ${primaryTeachingCourse.fullname} con tu rol de ${getCourseRoleLabel(primaryTeachingCourse.roleBucket).toLowerCase()}.`,
-      },
-      {
-        href: `/mis-cursos/${primaryTeachingCourse.courseId}/tareas`,
-        title: "Tareas del curso",
-        body: "Abre el tablero de tareas del curso donde impartes docencia.",
-      }
-    );
-  }
-
-  if (primaryManagedCourse) {
-    cards.push({
-      href: `/mis-cursos/${primaryManagedCourse.courseId}/calificaciones`,
-      title: "Calificaciones",
-      body: `Accede rápido a las calificaciones de ${primaryManagedCourse.fullname}.`,
-    });
-  }
-
-  if (accessProfile.canManagePlatform || accessProfile.isAdministrator) {
-    cards.push({
-      href: "/catalogo",
-      title: "Catálogo",
-      body: "Comprueba la visibilidad pública de la oferta formativa.",
-    });
-  }
-
-  return cards.slice(0, 6);
 }
 
 export default async function MyCoursesPage() {
@@ -346,8 +275,9 @@ export default async function MyCoursesPage() {
   const studentOnlyCourses = courseCapabilities.filter(
     (course) => course.roleBucket === "student"
   );
-  const quickActionCards = getQuickActionCards({
-    accessProfile,
+  const quickActions = getDashboardQuickActions({
+    profileRole: accessProfile.primaryRole,
+    canManageOwnFiles: accessProfile.siteInfo.userCanManageOwnFiles,
     primaryTeachingCourse: teachingCourses[0],
     primaryManagedCourse: managedCourses[0] || teachingCourses[0],
   });
@@ -445,10 +375,12 @@ export default async function MyCoursesPage() {
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {quickActionCards.map((card) => (
+          {quickActions
+            .filter((card) => Boolean(card.href))
+            .map((card) => (
             <Link
               key={card.href}
-              href={card.href}
+              href={card.href!}
               className="animate-rise-in rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
             >
               <p className="text-sm font-semibold text-[var(--foreground)]">
@@ -552,10 +484,9 @@ export default async function MyCoursesPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               {teacherOnlyCourses.map((course) => (
-                <Link
+                <div
                   key={`teacher-${course.courseId}`}
-                  href={`/mis-cursos/${course.courseId}`}
-                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {getCourseRoleChips(course).map((tag) => (
@@ -571,9 +502,38 @@ export default async function MyCoursesPage() {
                     {course.fullname}
                   </h3>
                   <p className="mt-2 text-sm text-[var(--muted)]">
-                    Abre el curso para seguir la actividad, consultar tareas y revisar calificaciones.
+                    Curso priorizado para seguimiento y revisión docente.
                   </p>
-                </Link>
+                  <div className="mt-4">
+                    <CourseRoleActionGrid
+                      sections={[
+                        {
+                          title: "Seguimiento y revisión",
+                          description:
+                            "Acciones disponibles hoy para seguimiento docente dentro de la app.",
+                          tone: "accent",
+                          actions: [
+                            {
+                              title: "Abrir curso",
+                              body: "Entra al detalle del curso con contexto docente.",
+                              href: `/mis-cursos/${course.courseId}`,
+                            },
+                            {
+                              title: "Tareas",
+                              body: "Accede al tablero de tareas del curso.",
+                              href: `/mis-cursos/${course.courseId}/tareas`,
+                            },
+                            {
+                              title: "Calificaciones",
+                              body: "Consulta la evaluación que la app ya expone.",
+                              href: `/mis-cursos/${course.courseId}/calificaciones`,
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           </section>
@@ -592,10 +552,9 @@ export default async function MyCoursesPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               {editingCourses.map((course) => (
-                <Link
+                <div
                   key={`editing-${course.courseId}`}
-                  href={`/mis-cursos/${course.courseId}`}
-                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {getCourseRoleChips(course).map((tag) => (
@@ -610,18 +569,39 @@ export default async function MyCoursesPage() {
                   <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
                     {course.fullname}
                   </h3>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
-                      Detalle del curso
-                    </span>
-                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
-                      Tareas
-                    </span>
-                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
-                      Calificaciones
-                    </span>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    Curso priorizado para seguimiento docente y edición ligera.
+                  </p>
+                  <div className="mt-4">
+                    <CourseRoleActionGrid
+                      sections={[
+                        {
+                          title: "Edición ligera",
+                          description:
+                            "Accesos rápidos que hoy sí están soportados para docencia con edición.",
+                          tone: "accent",
+                          actions: [
+                            {
+                              title: "Abrir curso",
+                              body: "Vuelve al detalle del curso con contexto de edición.",
+                              href: `/mis-cursos/${course.courseId}`,
+                            },
+                            {
+                              title: "Tareas",
+                              body: "Sigue entregas y contexto académico del curso.",
+                              href: `/mis-cursos/${course.courseId}/tareas`,
+                            },
+                            {
+                              title: "Buscar",
+                              body: "Usa búsqueda global mientras trabajas este curso.",
+                              href: "/buscar",
+                            },
+                          ],
+                        },
+                      ]}
+                    />
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </section>
@@ -642,10 +622,9 @@ export default async function MyCoursesPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               {managedCourses.map((course) => (
-                  <Link
+                  <div
                     key={`managed-${course.courseId}`}
-                    href={`/mis-cursos/${course.courseId}`}
-                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       {getCourseRoleChips(course).map((tag) => (
@@ -673,36 +652,57 @@ export default async function MyCoursesPage() {
                         Abre el curso para centralizar tareas, calificaciones y actividad.
                       </p>
                     )}
-                  </Link>
+                    <div className="mt-4">
+                      <CourseRoleActionGrid
+                        sections={[
+                          {
+                            title: "Administración del curso",
+                            description:
+                              "Acciones amplias ya disponibles para supervisión y control del curso.",
+                            tone: "warning",
+                            actions: [
+                              {
+                                title: "Abrir curso",
+                                body: "Centraliza la supervisión desde el detalle del curso.",
+                                href: `/mis-cursos/${course.courseId}`,
+                              },
+                              {
+                                title: "Calificaciones",
+                                body: "Mantén a mano la evaluación del curso.",
+                                href: `/mis-cursos/${course.courseId}/calificaciones`,
+                              },
+                              {
+                                title: "Catálogo",
+                                body: "Comprueba cómo se presenta la oferta formativa fuera del curso.",
+                                href: "/catalogo",
+                              },
+                            ],
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
               ))}
 
               {accessProfile.canManagePlatform || accessProfile.isAdministrator ? (
-                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-5">
+                <div className="rounded-2xl border border-[var(--warning)]/25 bg-[var(--warning)]/8 px-5 py-5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-amber-800">
+                    <span className="chip chip-warning">
                       {accessProfile.isAdministrator ? "Administrador" : "Gestión de plataforma"}
                     </span>
                   </div>
                   <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
-                    Acceso elevado detectado
+                    Administración de plataforma
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                    La app ya distingue este nivel de acceso. De momento las áreas más útiles aquí son búsqueda global, catálogo, calendario y revisión de cursos.
+                    Gestiona usuarios, cursos, matriculaciones y cohortes desde el panel de administración.
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
-                      Buscar
-                    </span>
-                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
-                      Catálogo
-                    </span>
-                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
-                      Calendario
-                    </span>
-                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
-                      Ajustes
-                    </span>
-                  </div>
+                  <Link
+                    href="/administracion"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[var(--warning)]/15 px-4 py-2 text-sm font-semibold text-[var(--warning)] transition hover:bg-[var(--warning)]/25"
+                  >
+                    Ir a Administración →
+                  </Link>
                 </div>
               ) : null}
             </div>

@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
@@ -190,11 +190,7 @@ function ResourcePreview({
             Vista previa no disponible.
           </p>
           {resourceModule.url ? (
-            <Button asChild className="mt-4">
-              <a href={resourceModule.url} target="_blank" rel="noreferrer">
-                Abrir recurso
-              </a>
-            </Button>
+            <LinkButton as="a" href={resourceModule.url} target="_blank" rel="noreferrer" className="mt-4">Abrir recurso</LinkButton>
           ) : null}
         </CardContent>
       </Card>
@@ -256,11 +252,7 @@ function ResourcePreview({
         <p className="text-sm text-[var(--color-muted)]">
           Formato no soportado para vista previa.
         </p>
-        <Button asChild className="mt-4">
-          <a href={proxiedUrl} target="_blank" rel="noreferrer">
-            Abrir archivo
-          </a>
-        </Button>
+        <LinkButton as="a" href={proxiedUrl} target="_blank" rel="noreferrer" className="mt-4">Abrir archivo</LinkButton>
       </CardContent>
     </Card>
   );
@@ -473,14 +465,7 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
                           ) : null}
                         </div>
                         {fileUrl ? (
-                          <Button asChild size="sm" variant="outline">
-                            <a
-                              href={fileUrl}
-                              download={file.filename}
-                            >
-                              Descargar
-                            </a>
-                          </Button>
+                          <LinkButton as="a" href={fileUrl} download={file.filename} size="sm" variant="outline">Descargar</LinkButton>
                         ) : null}
                       </div>
                     );
@@ -504,19 +489,8 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
 
                 {proxiedUrl ? (
                   <div className="flex flex-wrap gap-3 md:justify-end">
-                    <Button asChild variant="outline" size="sm">
-                      <a href={proxiedUrl} target="_blank" rel="noreferrer">
-                        Abrir aparte
-                      </a>
-                    </Button>
-                    <Button asChild size="sm">
-                      <a
-                        href={proxiedUrl}
-                        download={content?.filename || resourceModule.name}
-                      >
-                        Descargar
-                      </a>
-                    </Button>
+                    <LinkButton as="a" href={proxiedUrl} target="_blank" rel="noreferrer" variant="outline" size="sm">Abrir aparte</LinkButton>
+                    <LinkButton as="a" href={proxiedUrl} download={content?.filename || resourceModule.name} size="sm">Descargar</LinkButton>
                   </div>
                 ) : null}
               </CardContent>

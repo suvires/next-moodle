@@ -1,18 +1,19 @@
-"use client";
-
-import * as React from "react";
-import * as SeparatorPrimitive from "@radix-ui/react-separator";
+import { Separator as HeroSeparator } from "@heroui/react";
 import { cn } from "@/lib/utils";
+import type * as React from "react";
+
+type SeparatorProps = React.ComponentProps<typeof HeroSeparator> & {
+  decorative?: boolean;
+};
 
 export function Separator({
   className,
   orientation = "horizontal",
-  decorative = true,
+  decorative,
   ...props
-}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
+}: SeparatorProps) {
   return (
-    <SeparatorPrimitive.Root
-      decorative={decorative}
+    <HeroSeparator
       orientation={orientation}
       className={cn(
         "shrink-0 bg-[var(--line)]",

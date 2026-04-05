@@ -19,7 +19,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button size="sm" disabled={pending}>
+    <Button size="sm" isDisabled={pending}>
       {pending ? "Enviando..." : "Enviar entrega"}
     </Button>
   );
@@ -53,15 +53,11 @@ export function AssignmentSubmissionForm({
       </div>
 
       {state.error ? (
-        <p className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
-          {state.error}
-        </p>
+        <p className="banner-danger">{state.error}</p>
       ) : null}
 
       {state.success ? (
-        <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-          Entrega enviada.
-        </p>
+        <p className="banner-success">Entrega enviada.</p>
       ) : null}
 
       <SubmitButton />

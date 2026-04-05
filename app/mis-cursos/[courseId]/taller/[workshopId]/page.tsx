@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
+import { Button, LinkButton } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
@@ -36,18 +35,18 @@ function formatDate(value?: number) {
 function phaseLabel(phase: number) {
   switch (phase) {
     case 0:
-      return { label: "Configuracion", className: "border-white/10 bg-white/4 text-[var(--color-muted)]" };
+      return { label: "Configuracion", className: "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--color-muted)]" };
     case 10:
-      return { label: "Envio", className: "border-amber-400/20 bg-amber-400/10 text-amber-400" };
+      return { label: "Envio", className: "border-[var(--warning-soft)] bg-[var(--warning-soft)] text-[var(--warning)]" };
     case 20:
-      return { label: "Evaluacion", className: "border-blue-400/20 bg-blue-400/10 text-blue-400" };
+      return { label: "Evaluacion", className: "border-[var(--accent-cool)]/20 bg-[var(--accent-cool)]/10 text-[var(--accent-cool)]" };
     case 30:
-      return { label: "Calificacion", className: "border-purple-400/20 bg-purple-400/10 text-purple-400" };
+      return { label: "Calificacion", className: "border-[var(--accent-cool)]/30 bg-[var(--accent-cool)]/15 text-[var(--accent-cool)]" };
     case 40:
     case 50:
-      return { label: "Cerrado", className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" };
+      return { label: "Cerrado", className: "border-[var(--success-soft)] bg-[var(--success-soft)] text-[var(--success)]" };
     default:
-      return { label: "Desconocido", className: "border-white/10 bg-white/4 text-[var(--color-muted)]" };
+      return { label: "Desconocido", className: "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--color-muted)]" };
   }
 }
 
@@ -144,9 +143,7 @@ export default async function WorkshopPage({ params }: WorkshopPageProps) {
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Taller"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
         />
 
@@ -228,7 +225,7 @@ export default async function WorkshopPage({ params }: WorkshopPageProps) {
 
                     <div className="flex items-center gap-3">
                       {submission.published ? (
-                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                        <span className="rounded-full border border-[var(--success-soft)] bg-[var(--success-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--success)]">
                           Publicado
                         </span>
                       ) : null}

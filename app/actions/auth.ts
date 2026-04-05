@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { logger } from "@/lib/logger";
-import { authenticateWithMoodle, MoodleApiError } from "@/lib/moodle";
+import { authenticateWithMoodle, MoodleApiError, requestPasswordReset } from "@/lib/moodle";
 import { clearSession, createSession } from "@/lib/session";
 
 export type LoginFormState = {
@@ -78,4 +78,28 @@ export async function loginAction(
 export async function logoutAction() {
   await clearSession();
   redirect("/");
+}
+
+export type ForgotPasswordFormState = {
+  error: string | null;
+  success: boolean;
+};
+
+export async function requestPasswordResetAction(
+  _prev: ForgotPasswordFormState,
+  formData: FormData
+): Promise<ForgotPasswordFormState> {
+  const identifier = String(formData.get("identifier") || "").trim();
+
+  if (!identifier) {
+    return { error: "Introduce tu usuario o email.", success: false };
+  }
+
+  try {
+    await requestPasswordReset(identifier);
+  } catch (error) {
+    logger.warn("Password reset request failed", { error });
+  }
+
+  return { error: null, success: true };
 }

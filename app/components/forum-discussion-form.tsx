@@ -19,7 +19,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} className="w-full sm:w-auto">
+    <Button isDisabled={pending} className="w-full sm:w-auto">
       {pending ? "Publicando..." : "Nuevo hilo"}
     </Button>
   );
@@ -65,9 +65,7 @@ export function ForumDiscussionForm({
       </div>
 
       {state.error ? (
-        <p className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
-          {state.error}
-        </p>
+        <p className="banner-danger">{state.error}</p>
       ) : null}
 
       <SubmitButton />

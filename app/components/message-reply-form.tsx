@@ -17,7 +17,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button size="sm" disabled={pending}>
+    <Button size="sm" isDisabled={pending}>
       {pending ? "Enviando..." : "Enviar"}
     </Button>
   );
@@ -47,9 +47,7 @@ export function MessageReplyForm({
       />
 
       {state.error ? (
-        <p className="rounded-[1rem] border border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)] px-4 py-3 text-sm text-[var(--color-danger)]">
-          {state.error}
-        </p>
+        <p className="banner-danger">{state.error}</p>
       ) : null}
 
       <SubmitButton />

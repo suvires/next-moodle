@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { startQuizAttemptAction, submitQuizAttemptAction } from "@/app/actions/quiz";
 import { AppTopbar } from "@/app/components/app-topbar";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
 import { QuizFormButton } from "@/app/components/quiz-form-button";
 import { QuizQuestionHtml } from "@/app/components/quiz-question-html";
 import { RichHtml } from "@/app/components/rich-html";
-import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
 import {
+  getCourseParticipants,
   getQuizAccessInformation,
   getQuizAttemptData,
   getQuizAttemptReview,
@@ -17,6 +18,7 @@ import {
   getQuizUserAttempts,
   getQuizzesByCourses,
   getUserCourses,
+  isAccessException,
   isAuthenticationError,
   resolveUserAccessProfile,
   viewQuiz,
@@ -31,8 +33,14 @@ import type {
   MoodleQuizAttemptReview,
   MoodleQuizAccessInformation,
   MoodleCourseAccessProfile,
+  MoodleCourseParticipant,
 } from "@/lib/moodle";
-import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
+import {
+  getActivityRoleActions,
+  getCourseRoleLabel,
+  getCourseRoleTone,
+  shouldShowStudentParticipationActions,
+} from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type QuizDetailPageProps = {
@@ -44,6 +52,7 @@ type QuizDetailPageProps = {
     attempt?: string;
     page?: string;
     review?: string;
+    user?: string;
     view?: string;
     quizError?: string;
     quizNotice?: string;
@@ -102,17 +111,17 @@ function attemptStateBadge(state: MoodleQuizAttempt["state"]) {
     case "notstarted":
       return {
         label: "Sin iniciar",
-        className: "border-sky-400/20 bg-sky-400/10 text-sky-300",
+        className: "border-[var(--accent-cool)]/20 bg-[var(--accent-cool)]/10 text-[var(--accent-cool)]",
       };
     case "finished":
       return {
         label: "Finalizado",
-        className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+        className: "border-[var(--success-soft)] bg-[var(--success-soft)] text-[var(--success)]",
       };
     case "inprogress":
       return {
         label: "En curso",
-        className: "border-amber-400/20 bg-amber-400/10 text-amber-400",
+        className: "border-[var(--warning-soft)] bg-[var(--warning-soft)] text-[var(--warning)]",
       };
     case "overdue":
       return {
@@ -122,12 +131,12 @@ function attemptStateBadge(state: MoodleQuizAttempt["state"]) {
     case "submitted":
       return {
         label: "Entregado",
-        className: "border-cyan-400/20 bg-cyan-400/10 text-cyan-300",
+        className: "border-[var(--accent-cool)]/20 bg-[var(--accent-cool)]/10 text-[var(--accent-cool)]",
       };
     case "abandoned":
       return {
         label: "Abandonado",
-        className: "border-white/10 bg-white/4 text-[var(--color-muted)]",
+        className: "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--color-muted)]",
       };
   }
 }
@@ -157,6 +166,14 @@ function getUnsupportedQuestionTypes(accessInfo?: MoodleQuizAccessInformation) {
   );
 }
 
+function getParticipantRoleSummary(participant?: MoodleCourseParticipant) {
+  if (!participant || participant.roles.length === 0) {
+    return "Sin roles visibles";
+  }
+
+  return participant.roles.map((role) => role.name).join(", ");
+}
+
 export default async function QuizDetailPage({
   params,
   searchParams,
@@ -183,6 +200,7 @@ export default async function QuizDetailPage({
 
   const requestedAttemptId = parsePositiveInt(query.attempt);
   const requestedReviewId = parsePositiveInt(query.review);
+  const requestedParticipantId = parsePositiveInt(query.user);
   const requestedPage = parseNonNegativeInt(query.page, 0);
   const wantsSummary = query.view === "summary";
   const returnPath = buildQuizRoute(parsedCourseId, parsedQuizId, {});
@@ -190,74 +208,168 @@ export default async function QuizDetailPage({
   let courses = [] as Awaited<ReturnType<typeof getUserCourses>>;
   let quiz: MoodleQuiz | undefined;
   let attempts: MoodleQuizAttempt[] = [];
+  let participants: MoodleCourseParticipant[] = [];
   let accessInfo: MoodleQuizAccessInformation | undefined;
   let attemptData: MoodleQuizAttemptData | null = null;
   let attemptReview: MoodleQuizAttemptReview | null = null;
   let attemptSummary: Awaited<ReturnType<typeof getQuizAttemptSummary>> | null =
     null;
+  let selectedParticipantId: number | undefined;
+  let selectedParticipant: MoodleCourseParticipant | undefined;
+  let participantsAccessError: string | null = null;
+  let attemptsAccessError: string | null = null;
   let errorMessage: string | null = null;
   let expiredSession = false;
   let courseAccess: MoodleCourseAccessProfile | null = null;
 
   try {
-    const [coursesResult, quizzes, attemptsResult, accessResult, accessProfile] =
+    const [coursesResult, quizzes, accessResult, accessProfile] =
       await Promise.all([
         getUserCourses(session.token, session.userId),
         getQuizzesByCourses(session.token, [parsedCourseId]),
-        getQuizUserAttempts(session.token, parsedQuizId, session.userId).catch(
-          () => []
-        ),
         getQuizAccessInformation(session.token, parsedQuizId),
         resolveUserAccessProfile(session.token, session.userId).catch(() => null),
       ]);
 
     courses = coursesResult;
     quiz = quizzes.find((q) => q.id === parsedQuizId);
-    attempts = attemptsResult;
     accessInfo = accessResult;
     courseAccess =
       accessProfile?.courseCapabilities.find(
         (course) => course.courseId === parsedCourseId
       ) || null;
+    const canParticipateAsStudentRole =
+      (courseAccess?.roleBucket || "student") === "student";
 
     await viewQuiz(session.token, parsedQuizId).catch(() => undefined);
 
-    const activeAttempt =
-      (requestedAttemptId
-        ? attempts.find((attempt) => attempt.id === requestedAttemptId)
-        : undefined) ||
-      attempts
-        .filter(
-          (attempt) =>
-            attempt.state === "inprogress" || attempt.state === "overdue"
-        )
-        .sort((a, b) => (b.attemptNumber ?? 0) - (a.attemptNumber ?? 0))[0];
+    if (canParticipateAsStudentRole) {
+      attempts = await getQuizUserAttempts(
+        session.token,
+        parsedQuizId,
+        session.userId
+      ).catch(() => []);
 
-    if (requestedReviewId) {
-      await viewQuizAttemptReview(session.token, requestedReviewId).catch(
-        () => undefined
+      const activeAttempt =
+        (requestedAttemptId
+          ? attempts.find((attempt) => attempt.id === requestedAttemptId)
+          : undefined) ||
+        attempts
+          .filter(
+            (attempt) =>
+              attempt.state === "inprogress" || attempt.state === "overdue"
+          )
+          .sort((a, b) => (b.attemptNumber ?? 0) - (a.attemptNumber ?? 0))[0];
+
+      if (requestedReviewId) {
+        await viewQuizAttemptReview(session.token, requestedReviewId).catch(
+          () => undefined
+        );
+        attemptReview = await getQuizAttemptReview(
+          session.token,
+          requestedReviewId,
+          -1
+        );
+      } else if (activeAttempt && wantsSummary) {
+        await viewQuizAttemptSummary(session.token, activeAttempt.id).catch(
+          () => undefined
+        );
+        attemptSummary = await getQuizAttemptSummary(
+          session.token,
+          activeAttempt.id
+        );
+      } else if (activeAttempt) {
+        await viewQuizAttempt(
+          session.token,
+          activeAttempt.id,
+          requestedPage
+        ).catch(() => undefined);
+        attemptData = await getQuizAttemptData(
+          session.token,
+          activeAttempt.id,
+          requestedPage
+        );
+      }
+    } else if (accessResult.canViewReports || accessResult.canManage) {
+      try {
+        participants = await getCourseParticipants(session.token, parsedCourseId);
+      } catch (participantsError) {
+        if (isAccessException(participantsError)) {
+          participantsAccessError =
+            "Tu cuenta no puede consultar los participantes de este curso.";
+        } else {
+          logger.warn("Quiz participants load failed", {
+            userId: session.userId,
+            courseId: parsedCourseId,
+            quizId: parsedQuizId,
+            error: participantsError,
+          });
+          participantsAccessError =
+            "No se pudieron cargar los participantes para revisar el cuestionario.";
+        }
+      }
+
+      selectedParticipantId = requestedParticipantId ?? participants[0]?.id;
+      selectedParticipant = participants.find(
+        (participant) => participant.id === selectedParticipantId
       );
-      attemptReview = await getQuizAttemptReview(
-        session.token,
-        requestedReviewId,
-        -1
-      );
-    } else if (activeAttempt && wantsSummary) {
-      await viewQuizAttemptSummary(session.token, activeAttempt.id).catch(
-        () => undefined
-      );
-      attemptSummary = await getQuizAttemptSummary(session.token, activeAttempt.id);
-    } else if (activeAttempt) {
-      await viewQuizAttempt(
-        session.token,
-        activeAttempt.id,
-        requestedPage
-      ).catch(() => undefined);
-      attemptData = await getQuizAttemptData(
-        session.token,
-        activeAttempt.id,
-        requestedPage
-      );
+
+      if (selectedParticipantId) {
+        try {
+          attempts = await getQuizUserAttempts(
+            session.token,
+            parsedQuizId,
+            selectedParticipantId
+          );
+        } catch (participantAttemptsError) {
+          if (isAccessException(participantAttemptsError)) {
+            attemptsAccessError =
+              "Tu cuenta no puede consultar los intentos de este participante.";
+          } else {
+            logger.warn("Quiz participant attempts load failed", {
+              userId: session.userId,
+              courseId: parsedCourseId,
+              quizId: parsedQuizId,
+              participantId: selectedParticipantId,
+              error: participantAttemptsError,
+            });
+            attemptsAccessError =
+              "No se pudieron cargar los intentos del participante seleccionado.";
+          }
+        }
+
+        if (requestedReviewId) {
+          try {
+            await viewQuizAttemptReview(session.token, requestedReviewId).catch(
+              () => undefined
+            );
+            attemptReview = await getQuizAttemptReview(
+              session.token,
+              requestedReviewId,
+              -1
+            );
+          } catch (reviewError) {
+            if (isAccessException(reviewError)) {
+              attemptsAccessError =
+                "Tu cuenta no puede revisar ese intento desde la app.";
+            } else {
+              logger.warn("Quiz attempt review load failed", {
+                userId: session.userId,
+                courseId: parsedCourseId,
+                quizId: parsedQuizId,
+                participantId: selectedParticipantId,
+                reviewId: requestedReviewId,
+                error: reviewError,
+              });
+              attemptsAccessError =
+                "No se pudo cargar la revisión del intento seleccionado.";
+            }
+          }
+        }
+      }
+    } else {
+      attemptsAccessError =
+        "Tu acceso actual no puede consultar intentos de otros participantes en este cuestionario.";
     }
   } catch (error) {
     expiredSession = isAuthenticationError(error);
@@ -300,6 +412,9 @@ export default async function QuizDetailPage({
 
   const actionError = query.quizError || null;
   const actionNotice = query.quizNotice || null;
+  const canParticipateAsStudent = shouldShowStudentParticipationActions(
+    effectiveCourseAccess
+  );
   const unsupportedQuestionTypes = getUnsupportedQuestionTypes(accessInfo);
   const canRenderInApp = unsupportedQuestionTypes.length === 0;
   const requiresPreflight = accessInfo?.isPreflightCheckRequired ?? false;
@@ -321,6 +436,7 @@ export default async function QuizDetailPage({
     .sort((a, b) => (b.grade ?? 0) - (a.grade ?? 0))[0];
 
   const canStartAttempt =
+    canParticipateAsStudent &&
     Boolean(accessInfo?.canAttempt) &&
     !accessInfo?.isFinished &&
     (accessInfo?.preventAccessReasons.length || 0) === 0 &&
@@ -337,6 +453,47 @@ export default async function QuizDetailPage({
           requestedPage,
       })
     : returnPath;
+  const roleActionSection = {
+    title:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "Intento, entrega y consulta"
+        : effectiveCourseAccess.roleBucket === "teacher"
+          ? "Seguimiento y revisión"
+          : effectiveCourseAccess.roleBucket === "editing_teacher"
+            ? "Edición ligera"
+            : "Administración del curso",
+    description:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "Accesos rápidos para intentar, continuar o revisar el cuestionario."
+        : "Accesos disponibles hoy para seguir el cuestionario desde tu rol real en el curso.",
+    tone:
+      effectiveCourseAccess.roleBucket === "student"
+        ? "success"
+        : effectiveCourseAccess.roleBucket === "course_manager"
+          ? "warning"
+          : "accent",
+    actions: getActivityRoleActions({
+      courseId: parsedCourseId,
+      courseAccess: effectiveCourseAccess,
+      activityType: "quiz",
+    }),
+  } as const;
+  const selectedParticipantAttempts = attempts;
+  const selectedParticipantBestAttempt = selectedParticipantAttempts
+    .filter((attempt) => attempt.grade !== undefined)
+    .sort((a, b) => (b.grade ?? 0) - (a.grade ?? 0))[0];
+  const selectedParticipantLatestAttempt = selectedParticipantAttempts
+    .slice()
+    .sort(
+      (a, b) =>
+        (b.timeFinish || b.timeStart || 0) - (a.timeFinish || a.timeStart || 0)
+    )[0];
+  const selectedParticipantActiveAttempt = selectedParticipantAttempts.find(
+    (attempt) =>
+      attempt.state === "inprogress" ||
+      attempt.state === "overdue" ||
+      attempt.state === "submitted"
+  );
 
   return (
     <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
@@ -346,9 +503,22 @@ export default async function QuizDetailPage({
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Cuestionario"
           actions={
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver</Link>
-            </Button>
+            <div className="flex items-center gap-3">
+              {!canParticipateAsStudent ? (
+                <Link
+                  href={`/mis-cursos/${parsedCourseId}/reportes`}
+                  className="text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                >
+                  Reportes
+                </Link>
+              ) : null}
+              <Link
+                href={`/mis-cursos/${parsedCourseId}`}
+                className="text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                Volver
+              </Link>
+            </div>
           }
         />
 
@@ -365,7 +535,7 @@ export default async function QuizDetailPage({
           <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">
             {effectiveCourseAccess.roleBucket === "student"
               ? "La vista está orientada a realizar, seguir y revisar tus intentos."
-              : "La vista mantiene el flujo de intento en la app, pero ya refleja que accedes al curso con un rol distinto de alumno."}
+              : "La vista prioriza seguimiento y revisión de intentos según tu rol real en el curso."}
           </p>
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-[var(--color-foreground)]">
             {quiz?.timeLimit ? (
@@ -383,6 +553,8 @@ export default async function QuizDetailPage({
           </div>
         </div>
 
+        <CourseRoleActionGrid sections={[roleActionSection]} />
+
         {errorMessage ? (
           <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
             {expiredSession
@@ -392,19 +564,27 @@ export default async function QuizDetailPage({
         ) : null}
 
         {actionError ? (
-          <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
-            {actionError}
-          </div>
+          <div className="banner-danger">{actionError}</div>
         ) : null}
 
         {actionNotice ? (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-500">
-            {actionNotice}
+          <div className="banner-success">{actionNotice}</div>
+        ) : null}
+
+        {participantsAccessError ? (
+          <div className="banner-warning">
+            {participantsAccessError}
+          </div>
+        ) : null}
+
+        {attemptsAccessError ? (
+          <div className="banner-warning">
+            {attemptsAccessError}
           </div>
         ) : null}
 
         {unsupportedQuestionTypes.length > 0 ? (
-          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/8 px-4 py-3 text-sm text-[var(--color-warning)]">
+          <div className="banner-warning">
             Este cuestionario usa tipos de pregunta que no son compatibles con
             el renderizado seguro en la app:{" "}
             {unsupportedQuestionTypes.join(", ")}. Puedes consultar la
@@ -414,7 +594,7 @@ export default async function QuizDetailPage({
         ) : null}
 
         {requiresPreflight ? (
-          <div className="rounded-lg border border-[var(--color-warning)]/20 bg-[var(--color-warning)]/8 px-4 py-3 text-sm text-[var(--color-warning)]">
+          <div className="banner-warning">
             Este cuestionario requiere una comprobación previa, como una clave
             de acceso. En este primer corte el intento debe continuarse en la
             plataforma principal para no perder esa validación entre páginas.
@@ -537,7 +717,141 @@ export default async function QuizDetailPage({
           </Card>
         ) : null}
 
-        {attemptData && supportsAttemptRuntime ? (
+        {!canParticipateAsStudent ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <h2 className="text-lg font-semibold">Seguimiento del cuestionario</h2>
+              <Separator className="my-3" />
+              <p className="text-sm leading-7 text-[var(--color-muted)]">
+                El inicio y envío de intentos se ocultan porque esta vista está
+                priorizando seguimiento y revisión según tu rol actual en el
+                curso.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!canParticipateAsStudent ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    Participantes para revisión
+                  </h2>
+                  <Separator className="my-3" />
+                  <p className="text-sm leading-7 text-[var(--color-muted)]">
+                    Selecciona un participante para consultar sus intentos y abrir la revisión de los que ya estén finalizados.
+                  </p>
+                </div>
+
+                {participants.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {participants.map((participant) => {
+                        const isSelected =
+                          participant.id === selectedParticipantId;
+
+                        return (
+                          <Link
+                            key={participant.id}
+                            href={buildQuizRoute(parsedCourseId, parsedQuizId, {
+                              user: participant.id,
+                            })}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition ${
+                              isSelected
+                                ? "border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                                : "border-[var(--color-line)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/30 hover:text-[var(--color-foreground)]"
+                            }`}
+                          >
+                            {participant.fullName}
+                          </Link>
+                        );
+                      })}
+                    </div>
+
+                    {selectedParticipant ? (
+                      <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-[var(--color-foreground)]">
+                              {selectedParticipant.fullName}
+                            </p>
+                            <p className="mt-1 text-sm text-[var(--color-muted)]">
+                              {getParticipantRoleSummary(selectedParticipant)}
+                            </p>
+                          </div>
+
+                          <div className="text-sm text-[var(--color-muted)] md:text-right">
+                            <p>
+                              Intentos visibles:{" "}
+                              <span className="font-medium text-[var(--color-foreground)]">
+                                {attempts.length}
+                              </span>
+                            </p>
+                            {selectedParticipant.lastAccess ? (
+                              <p className="mt-1">
+                                Último acceso: {formatDate(selectedParticipant.lastAccess)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-soft)] px-3 py-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                              Intentos
+                            </p>
+                            <p className="mt-1 text-lg font-semibold text-[var(--color-foreground)]">
+                              {selectedParticipantAttempts.length}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-soft)] px-3 py-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                              Estado actual
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">
+                              {selectedParticipantActiveAttempt
+                                ? attemptStateBadge(selectedParticipantActiveAttempt.state).label
+                                : "Sin intento activo"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-soft)] px-3 py-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                              Mejor intento
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">
+                              {selectedParticipantBestAttempt?.grade !== undefined
+                                ? `${selectedParticipantBestAttempt.grade.toFixed(2)}${quiz?.maxGrade ? ` / ${quiz.maxGrade}` : ""}`
+                                : "Sin nota visible"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-soft)] px-3 py-3">
+                            <p className="text-xs uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                              Última actividad
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--color-foreground)]">
+                              {formatDate(
+                                selectedParticipantLatestAttempt?.timeFinish ||
+                                  selectedParticipantLatestAttempt?.timeStart
+                              ) || "Sin actividad"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-sm leading-7 text-[var(--color-muted)]">
+                    No hay participantes visibles para este cuestionario con el acceso actual.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {attemptData && supportsAttemptRuntime && canParticipateAsStudent ? (
           <Card className="rounded-xl">
             <CardContent className="px-5 py-5 md:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -642,7 +956,10 @@ export default async function QuizDetailPage({
           </Card>
         ) : null}
 
-        {attemptSummary && activeAttempt && supportsAttemptRuntime ? (
+        {attemptSummary &&
+        activeAttempt &&
+        supportsAttemptRuntime &&
+        canParticipateAsStudent ? (
           <Card className="rounded-xl">
             <CardContent className="px-5 py-5 md:px-6">
               <h2 className="text-lg font-semibold">Resumen del intento</h2>
@@ -681,9 +998,12 @@ export default async function QuizDetailPage({
                   pendingLabel="Enviando..."
                   variant="primary"
                 />
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={currentAttemptPath}>Volver al intento</Link>
-                </Button>
+                <Link
+                  href={currentAttemptPath}
+                  className="inline-flex items-center rounded-full border border-[var(--color-line)] px-3 py-1 text-sm font-medium text-[var(--color-muted)] transition hover:border-[var(--color-accent)]/30 hover:text-[var(--color-foreground)]"
+                >
+                  Volver al intento
+                </Link>
               </form>
             </CardContent>
           </Card>
@@ -697,6 +1017,9 @@ export default async function QuizDetailPage({
                   <h2 className="text-lg font-semibold">Revisión del intento</h2>
                   <p className="text-sm text-[var(--color-muted)]">
                     Intento {attemptReview.attempt.attemptNumber}
+                    {!canParticipateAsStudent && selectedParticipant
+                      ? ` · ${selectedParticipant.fullName}`
+                      : ""}
                   </p>
                 </div>
                 <span
@@ -768,7 +1091,13 @@ export default async function QuizDetailPage({
         {attempts.length > 0 ? (
           <Card className="rounded-xl">
             <CardContent className="px-5 py-5 md:px-6">
-              <h2 className="text-lg font-semibold">Historial de intentos</h2>
+              <h2 className="text-lg font-semibold">
+                {canParticipateAsStudent
+                  ? "Historial de intentos"
+                  : selectedParticipant
+                    ? `Intentos de ${selectedParticipant.fullName}`
+                    : "Intentos del participante"}
+              </h2>
               <Separator className="my-3" />
               <div className="flex flex-col gap-1">
                 {attempts.map((attempt) => {
@@ -802,16 +1131,18 @@ export default async function QuizDetailPage({
                           </span>
                         ) : null}
                         {attempt.state === "finished" &&
-                        accessInfo?.canReviewMyAttempts ? (
-                          <Button asChild variant="ghost" size="sm">
-                            <Link
-                              href={buildQuizRoute(parsedCourseId, parsedQuizId, {
-                                review: attempt.id,
-                              })}
-                            >
-                              Ver revisión
-                            </Link>
-                          </Button>
+                        (canParticipateAsStudent
+                          ? accessInfo?.canReviewMyAttempts
+                          : accessInfo?.canViewReports || accessInfo?.canManage) ? (
+                          <Link
+                            href={buildQuizRoute(parsedCourseId, parsedQuizId, {
+                              user: selectedParticipantId,
+                              review: attempt.id,
+                            })}
+                            className="inline-flex items-center rounded-full border border-[var(--color-line)] px-3 py-1 text-sm font-medium text-[var(--color-muted)] transition hover:border-[var(--color-accent)]/30 hover:text-[var(--color-foreground)]"
+                          >
+                            Ver revisión
+                          </Link>
                         ) : null}
                       </div>
                     </div>
@@ -822,7 +1153,11 @@ export default async function QuizDetailPage({
           </Card>
         ) : !errorMessage ? (
           <p className="py-12 text-center text-sm text-[var(--color-muted)]">
-            No hay intentos registrados para este cuestionario.
+            {canParticipateAsStudent
+              ? "No hay intentos registrados para este cuestionario."
+              : selectedParticipant
+                ? `No hay intentos registrados para ${selectedParticipant.fullName}.`
+                : "Selecciona un participante para consultar sus intentos."}
           </p>
         ) : null}
       </div>

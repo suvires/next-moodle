@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
+import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
+import { ForumModerationForm } from "@/app/components/forum-moderation-form";
 import { ForumReplyForm } from "@/app/components/forum-reply-form";
 import { RichHtml } from "@/app/components/rich-html";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
@@ -21,7 +23,12 @@ import {
   viewForum,
   viewForumDiscussion,
 } from "@/lib/moodle";
-import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
+import {
+  getActivityRoleActions,
+  getCourseRoleLabel,
+  getCourseRoleTone,
+  shouldShowStudentParticipationActions,
+} from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type ForumDiscussionPageProps = {
@@ -218,6 +225,36 @@ export default async function ForumDiscussionPage({
         navigationOptions: {},
       }
     : null;
+  const canParticipateAsStudent =
+    effectiveCourseAccess &&
+    shouldShowStudentParticipationActions(effectiveCourseAccess);
+  const roleActionSection = effectiveCourseAccess
+    ? {
+        title:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "Participación"
+            : effectiveCourseAccess.roleBucket === "teacher"
+              ? "Seguimiento y revisión"
+              : effectiveCourseAccess.roleBucket === "editing_teacher"
+                ? "Edición ligera"
+                : "Administración del curso",
+        description:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "Accesos rápidos para leer y responder dentro de la discusión."
+            : "Accesos disponibles hoy para revisar la discusión desde tu rol real.",
+        tone:
+          effectiveCourseAccess.roleBucket === "student"
+            ? "success"
+            : effectiveCourseAccess.roleBucket === "course_manager"
+              ? "warning"
+              : "accent",
+        actions: getActivityRoleActions({
+          courseId: effectiveCourseAccess.courseId,
+          courseAccess: effectiveCourseAccess,
+          activityType: "forum_discussion",
+        }),
+      } as const
+    : null;
 
   return (
     <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
@@ -261,6 +298,10 @@ export default async function ForumDiscussionPage({
           ) : null}
         </div>
 
+        {roleActionSection ? (
+          <CourseRoleActionGrid sections={[roleActionSection]} />
+        ) : null}
+
         {errorMessage ? (
           <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
             {expiredSession
@@ -297,6 +338,23 @@ export default async function ForumDiscussionPage({
                 : "."}
             </p>
           </div>
+        ) : null}
+
+        {forum &&
+        discussion &&
+        posts[0] &&
+        effectiveCourseAccess &&
+        (effectiveCourseAccess.roleBucket === "editing_teacher" ||
+          effectiveCourseAccess.roleBucket === "course_manager") ? (
+          <ForumModerationForm
+            courseId={forum.courseId}
+            forumId={forum.id}
+            discussionId={discussion.id}
+            postId={posts[0].id}
+            returnPath={returnPath}
+            isPinned={discussion.pinned}
+            isLocked={discussion.locked}
+          />
         ) : null}
 
         <section className="flex flex-col gap-3">
@@ -336,6 +394,7 @@ export default async function ForumDiscussionPage({
                     ) : null}
 
                     {!postingWindow.cutoffDateReached &&
+                    canParticipateAsStudent &&
                     ((discussion?.canReply && post.canReply) ||
                       (postingWindow.isPastDueButOpen && !discussion?.locked)) ? (
                       <>
@@ -345,6 +404,20 @@ export default async function ForumDiscussionPage({
                           subject={post.replySubject || `Re: ${post.subject}`}
                           returnPath={returnPath}
                         />
+                      </>
+                    ) : null}
+
+                    {!postingWindow.cutoffDateReached &&
+                    !canParticipateAsStudent &&
+                    ((discussion?.canReply && post.canReply) ||
+                      (postingWindow.isPastDueButOpen && !discussion?.locked)) ? (
+                      <>
+                        <Separator />
+                        <p className="text-sm leading-7 text-[var(--color-muted)]">
+                          La respuesta directa se oculta porque esta vista está
+                          priorizando seguimiento y revisión según tu rol
+                          actual.
+                        </p>
                       </>
                     ) : null}
                   </div>
