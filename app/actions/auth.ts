@@ -72,7 +72,7 @@ export async function loginAction(
     userPictureUrl: authResult.user.userPictureUrl,
   });
 
-  redirect("/mis-cursos");
+  redirect("/dashboard");
 }
 
 export async function logoutAction() {

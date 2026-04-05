@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   adminSearchUsers,
+  getUserCourses,
   resolveUserAccessProfile,
 } from "@/lib/moodle";
 import { requireSession } from "@/lib/session";
@@ -33,7 +34,7 @@ export default async function UsuarioDetailPage({
 }) {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -49,6 +50,8 @@ export default async function UsuarioDetailPage({
 
   const user = users[0];
   if (!user) notFound();
+
+  const userCourses = await getUserCourses(adminToken, user.id).catch(() => []);
 
   return (
     <div className="animate-rise-in flex flex-col gap-6">
@@ -116,6 +119,44 @@ export default async function UsuarioDetailPage({
                 : "Este usuario tiene acceso activo a la plataforma."}
             </p>
             <SuspendUserForm userId={user.id} suspended={user.suspended} />
+          </div>
+
+          {/* Enrolled courses */}
+          <div className="surface-card rounded-xl p-6">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+              Cursos matriculados
+              {userCourses.length > 0 && (
+                <span className="ml-2 font-normal normal-case text-[var(--foreground)]">
+                  ({userCourses.length})
+                </span>
+              )}
+            </h2>
+            {userCourses.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">
+                Este usuario no tiene cursos visibles.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {userCourses.map((course) => (
+                  <li key={course.id} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/administracion/cursos/${course.id}`}
+                        className="truncate text-sm font-medium text-[var(--foreground)] hover:underline"
+                      >
+                        {course.fullname}
+                      </Link>
+                      {course.categoryname ? (
+                        <p className="truncate text-xs text-[var(--muted)]">
+                          {course.categoryname}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="chip chip-muted shrink-0">{course.shortname}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Danger zone */}

@@ -7,7 +7,7 @@ import {
   getUnsupportedMoodleFeatureMessage,
   resolveMoodleFeatureSupport,
 } from "@/lib/moodle-feature-support";
-import { getSiteInfo, markAllNotificationsAsRead } from "@/lib/moodle";
+import { getSiteInfo, markAllNotificationsAsRead, markNotificationRead, getNotifications, isAuthenticationError, type MoodleNotification } from "@/lib/moodle";
 import { clearSessionIfAuthenticationError, requireSession } from "@/lib/session";
 
 export async function markAllNotificationsReadAction(): Promise<void> {
@@ -32,6 +32,29 @@ export async function markAllNotificationsReadAction(): Promise<void> {
       redirect("/");
     }
     logger.error("Failed to mark notifications as read", { error });
+  }
+  revalidatePath("/notificaciones");
+  revalidatePath("/notificaciones/[id]", "page");
+}
+
+export async function getUnreadNotificationsAction(): Promise<MoodleNotification[]> {
+  const session = await requireSession();
+  try {
+    const notifications = await getNotifications(session.token, session.userId);
+    return notifications.filter((n) => !n.isRead);
+  } catch {
+    return [];
+  }
+}
+
+export async function markNotificationReadAction(notificationId: number): Promise<void> {
+  const session = await requireSession();
+  try {
+    await markNotificationRead(session.token, notificationId);
+  } catch (error) {
+    if (isAuthenticationError(error)) {
+      await clearSessionIfAuthenticationError(error);
+    }
   }
   revalidatePath("/notificaciones");
 }

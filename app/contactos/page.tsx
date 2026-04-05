@@ -50,16 +50,16 @@ export default async function ContactsPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[
             { label: "Mensajes", href: "/mensajes" },
             { label: "Contactos" },
           ]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="animate-rise-in">
           <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
@@ -123,7 +123,7 @@ export default async function ContactsPage() {
             ))}
           </section>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

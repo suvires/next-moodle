@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  adminGetCategories,
   adminGetCourses,
   adminSearchUsers,
   resolveUserAccessProfile,
@@ -47,34 +48,41 @@ export default async function AdminDashboardPage() {
     redirect("/mis-cursos");
   }
 
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
   const adminToken = session.token;
 
-  const [coursesResult, usersResult] = await Promise.allSettled([
+  const [coursesResult, usersResult, categoriesResult] = await Promise.allSettled([
     adminGetCourses(adminToken),
     adminSearchUsers(adminToken, [{ key: "confirmed", value: "1" }]),
+    adminGetCategories(adminToken),
   ]);
 
   const courses = coursesResult.status === "fulfilled" ? coursesResult.value : null;
   const users = usersResult.status === "fulfilled" ? usersResult.value : null;
+  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : null;
 
   const totalCourses = courses ? courses.length : null;
   const visibleCourses = courses ? courses.filter((c) => c.visible).length : null;
   const hiddenCourses = courses ? courses.filter((c) => !c.visible).length : null;
   const totalUsers = users ? users.length : null;
+  const totalCategories = categories ? categories.length : null;
 
-  const hasPartialFailure = coursesResult.status === "rejected" || usersResult.status === "rejected";
+  const hasPartialFailure =
+    coursesResult.status === "rejected" ||
+    usersResult.status === "rejected" ||
+    categoriesResult.status === "rejected";
 
-  const roleLabel = profile.isAdministrator ? "Administrador" : "Gestor de plataforma";
+  const roleLabel = "Gestor de plataforma";
 
   const stats = [
     { label: "Total cursos", value: totalCourses },
     { label: "Cursos visibles", value: visibleCourses },
     { label: "Cursos ocultos", value: hiddenCourses },
     { label: "Usuarios", value: totalUsers },
+    { label: "Categorías", value: totalCategories },
   ];
 
   return (
@@ -104,7 +112,7 @@ export default async function AdminDashboardPage() {
 
       {/* Stat grid */}
       <section>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           {stats.map((stat) => (
             <div
               key={stat.label}

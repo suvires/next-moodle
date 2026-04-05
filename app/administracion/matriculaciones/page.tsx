@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  adminGetCohorts,
   adminGetCourses,
   adminGetEnrolledUsers,
   resolveUserAccessProfile,
@@ -10,6 +11,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { UnenrolForm } from "./unenrol-form";
 import { EnrolForm } from "./enrol-form";
+import { EnrolCohortForm } from "./enrol-cohort-form";
 
 function formatLastAccess(lastAccess?: number): string {
   if (!lastAccess) return "Nunca";
@@ -33,7 +35,7 @@ export default async function MatriculacionesPage({
 }) {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -44,9 +46,10 @@ export default async function MatriculacionesPage({
   if (courseId) {
     const courseIdNum = Number(courseId);
 
-    const [coursesResult, enrolledResult] = await Promise.allSettled([
+    const [coursesResult, enrolledResult, cohortsResult] = await Promise.allSettled([
       adminGetCourses(adminToken, [courseIdNum]),
       adminGetEnrolledUsers(adminToken, courseIdNum),
+      adminGetCohorts(adminToken),
     ]);
 
     const course =
@@ -57,6 +60,8 @@ export default async function MatriculacionesPage({
       enrolledResult.status === "rejected"
         ? String(enrolledResult.reason)
         : null;
+    const cohorts =
+      cohortsResult.status === "fulfilled" ? cohortsResult.value : [];
 
     return (
       <div className="animate-rise-in flex flex-col gap-6">
@@ -151,6 +156,17 @@ export default async function MatriculacionesPage({
             Añadir matriculación
           </h2>
           <EnrolForm courseId={courseIdNum} />
+        </div>
+
+        {/* Cohort bulk enrolment */}
+        <div className="surface-card rounded-xl p-6">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Matricular cohorte
+          </h2>
+          <p className="mb-4 text-sm text-[var(--muted)]">
+            Matricula todos los miembros de una cohorte en este curso de una sola vez.
+          </p>
+          <EnrolCohortForm courseId={courseIdNum} cohorts={cohorts} />
         </div>
       </div>
     );

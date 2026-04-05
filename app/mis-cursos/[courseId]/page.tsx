@@ -9,6 +9,7 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
 import {
+  adminGetCourses,
   getActivitiesCompletionStatus,
   computeCourseProgress,
   getCourseContents,
@@ -18,6 +19,7 @@ import {
   resolveUserAccessProfile,
   type MoodleCourseAccessProfile,
 } from "@/lib/moodle";
+import { CourseVisibilityToggle } from "@/app/components/course-visibility-toggle";
 import { ProgressBar } from "@/app/components/progress-bar";
 import {
   getCourseRoleLabel,
@@ -165,6 +167,7 @@ export default async function CourseDetailPage({
   let progress = { completed: 0, total: 0, percentage: 0 };
   let courseUpdates: Awaited<ReturnType<typeof getCourseUpdatesSince>> = [];
   let courseAccess: MoodleCourseAccessProfile | null = null;
+  let courseVisible: boolean | null = null;
 
   try {
     const oneWeekAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
@@ -190,6 +193,13 @@ export default async function CourseDetailPage({
       accessProfile?.courseCapabilities.find(
         (course) => course.courseId === parsedCourseId
       ) || null;
+
+    if (courseAccess?.canManageCourse) {
+      const adminCourses = await adminGetCourses(session.token, [parsedCourseId]).catch(() => []);
+      if (adminCourses[0]) {
+        courseVisible = adminCourses[0].visible;
+      }
+    }
   } catch (error) {
     expiredSession = isAuthenticationError(error);
     logger.error("Course detail load failed", {
@@ -294,6 +304,15 @@ export default async function CourseDetailPage({
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
             {getCourseRoleDescription(effectiveCourseAccess)}
           </p>
+
+          {effectiveCourseAccess.canManageCourse && courseVisible !== null ? (
+            <div className="mt-4">
+              <CourseVisibilityToggle
+                courseId={parsedCourseId}
+                isVisible={courseVisible}
+              />
+            </div>
+          ) : null}
         </div>
 
         {errorMessage && (
@@ -408,14 +427,28 @@ export default async function CourseDetailPage({
         <section className="flex flex-col gap-4">
           {sections.length > 0 ? (
             sections.map((section, sectionIndex) => (
-              <div
+              <details
                 key={section.id}
-                className="animate-rise-in"
+                className="animate-rise-in group"
                 style={{ animationDelay: `${sectionIndex * 60}ms` }}
+                open={sectionIndex < 3 ? true : undefined}
               >
-                <h2 className="mb-3 text-lg font-bold text-[var(--foreground)]">
-                  {section.name}
-                </h2>
+                <summary className="mb-3 flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-1 py-1 hover:bg-[var(--surface-strong)] md:cursor-default md:pointer-events-none">
+                  <h2 className="text-lg font-bold text-[var(--foreground)]">
+                    {section.name}
+                    {section.modules.filter(m => m.visibleOnCoursePage).length > 0 ? (
+                      <span className="ml-2 text-sm font-normal text-[var(--muted)]">
+                        ({section.modules.filter(m => m.visibleOnCoursePage).length})
+                      </span>
+                    ) : null}
+                  </h2>
+                  <svg
+                    className="size-5 shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180 md:hidden"
+                    viewBox="0 0 20 20" fill="currentColor" aria-hidden
+                  >
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                  </svg>
+                </summary>
                 {section.summary && (
                   <RichHtml
                     html={section.summary}
@@ -570,7 +603,7 @@ export default async function CourseDetailPage({
                     })}
                   </div>
                 )}
-              </div>
+              </details>
             ))
           ) : (
             <p className="py-16 text-center text-[var(--muted)]">

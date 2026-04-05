@@ -21,7 +21,7 @@ export default async function Home({ searchParams }: HomeProps) {
   const session = await getSession();
 
   if (session) {
-    redirect("/mis-cursos");
+    redirect("/dashboard");
   }
 
   const [{ q, reason }, forceLogin] = await Promise.all([
@@ -68,6 +68,12 @@ export default async function Home({ searchParams }: HomeProps) {
             {errorMessage ? (
               <div className="banner-danger">{errorMessage}</div>
             ) : null}
+
+            <div>
+              <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+                Catálogo de cursos
+              </h1>
+            </div>
 
             {!errorMessage ? (
               <PublicCourseCatalog courses={courses} initialQuery={query} />

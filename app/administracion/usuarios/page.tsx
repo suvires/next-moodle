@@ -30,7 +30,7 @@ export default async function UsuariosPage({
 }) {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 

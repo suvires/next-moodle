@@ -13,7 +13,7 @@ export default async function AdminLayout({
 
   const profile = await resolveUserAccessProfile(session.token, session.userId);
 
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -23,7 +23,7 @@ export default async function AdminLayout({
         fullName={session.fullName}
         userPictureUrl={session.userPictureUrl}
         breadcrumbs={[
-          { label: "Inicio", href: "/mis-cursos" },
+          { label: "Inicio", href: "/dashboard" },
           { label: "Administración" },
         ]}
       />

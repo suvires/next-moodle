@@ -45,7 +45,7 @@ export default async function PerfilPage() {
     const [userProfile, courses, badges] = await Promise.all([
       getUserProfile(session.token, session.userId),
       getUserCourses(session.token, session.userId),
-      getUserBadges(session.token, session.userId),
+      getUserBadges(session.token, session.userId).catch(() => []),
     ]);
 
     profile = userProfile;
@@ -64,9 +64,8 @@ export default async function PerfilPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[{ label: "Perfil" }]}
@@ -78,7 +77,8 @@ export default async function PerfilPage() {
               Ajustes
             </Link>
           }
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         {errorMessage ? (
           <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
@@ -203,7 +203,7 @@ export default async function PerfilPage() {
             No se encontró información del perfil.
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

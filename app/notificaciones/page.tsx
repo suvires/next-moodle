@@ -2,9 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { markAllNotificationsReadAction } from "@/app/actions/notifications";
 import { AppTopbar } from "@/app/components/app-topbar";
-import { RichHtml } from "@/app/components/rich-html";
 import { Button } from "@/app/components/ui/button";
-import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
 import {
   getUnsupportedMoodleFeatureMessage,
@@ -12,13 +10,6 @@ import {
 } from "@/lib/moodle-feature-support";
 import { getNotifications, getSiteInfo, isAuthenticationError } from "@/lib/moodle";
 import { getSession } from "@/lib/session";
-
-function formatTime(timestamp: number): string {
-  return new Intl.DateTimeFormat("es-ES", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(timestamp * 1000));
-}
 
 export default async function NotificationsPage() {
   const session = await getSession();
@@ -50,13 +41,13 @@ export default async function NotificationsPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[{ label: "Notificaciones" }]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="animate-rise-in flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
@@ -98,76 +89,33 @@ export default async function NotificationsPage() {
         ) : null}
 
         {notifications.length > 0 ? (
-          <section className="flex flex-col gap-3">
-            {notifications.map((notification, index) => {
-              const inner = (
-                <CardContent className="flex gap-3">
-                  <div className="relative mt-1.5 flex shrink-0">
-                    {!notification.isRead ? (
-                      <span className="h-2 w-2 rounded-full bg-[var(--color-accent)]" />
-                    ) : (
-                      <span className="h-2 w-2 rounded-full bg-transparent" />
-                    )}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h2
-                        className={`text-sm font-semibold ${
-                          notification.isRead
-                            ? "text-[var(--color-muted)]"
-                            : "text-[var(--color-foreground)]"
-                        }`}
-                      >
-                        {notification.subject}
-                      </h2>
-                      {notification.timeCreated ? (
-                        <span className="shrink-0 text-xs text-[var(--color-muted)]">
-                          {formatTime(notification.timeCreated)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {notification.fromUserName ? (
-                      <p className="text-xs text-[var(--color-muted)]">
-                        De: {notification.fromUserName}
-                      </p>
-                    ) : null}
-                    {notification.messageHtml ? (
-                      <RichHtml
-                        html={notification.messageHtml}
-                        className="line-clamp-2 text-sm leading-relaxed text-[var(--color-muted)]"
-                      />
-                    ) : notification.message ? (
-                      <p className="line-clamp-2 text-sm leading-relaxed text-[var(--color-muted)]">
-                        {notification.message}
-                      </p>
-                    ) : null}
-                  </div>
-                </CardContent>
-              );
-
-              return (
-                <Card
-                  key={notification.id}
-                  className="animate-rise-in transition duration-300"
-                  style={{ animationDelay: `${index * 50}ms` }}
+          <section className="flex flex-col divide-y divide-[var(--line)]">
+            {notifications.map((notification, index) => (
+              <Link
+                key={notification.id}
+                href={`/notificaciones/${notification.id}`}
+                className="animate-rise-in flex items-center gap-3 py-3 transition hover:bg-[var(--surface-strong)] -mx-2 px-2 rounded-lg"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <span
+                  className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
+                    notification.isRead ? "bg-transparent" : "bg-[var(--color-accent)]"
+                  }`}
+                />
+                <span
+                  className={`text-sm ${
+                    notification.isRead
+                      ? "text-[var(--color-muted)]"
+                      : "font-medium text-[var(--color-foreground)]"
+                  }`}
                 >
-                  {notification.contextUrl ? (
-                    <Link
-                      href={notification.contextUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      {inner}
-                    </Link>
-                  ) : (
-                    inner
-                  )}
-                </Card>
-              );
-            })}
+                  {notification.subject}
+                </span>
+              </Link>
+            ))}
           </section>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

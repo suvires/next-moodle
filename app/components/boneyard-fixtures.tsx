@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export const BONEYARD_SKELETON_NAMES = [
+  "admin-categoria-detail",
+  "admin-categorias",
   "admin-cohorte-detail",
   "admin-cohortes",
+  "admin-curso-detail",
   "admin-cursos",
   "admin-dashboard",
   "admin-matriculaciones",
+  "admin-usuario-detail",
   "admin-usuarios",
   "assign-detail",
   "assignments-page",
@@ -19,6 +23,8 @@ export const BONEYARD_SKELETON_NAMES = [
   "contacts",
   "conversation-detail",
   "course-detail",
+  "course-edit",
+  "course-matriculaciones",
   "course-reports",
   "dashboard",
   "database-detail",
@@ -33,6 +39,7 @@ export const BONEYARD_SKELETON_NAMES = [
   "lti-detail",
   "messages-page",
   "notifications",
+  "participant-detail",
   "participants-page",
   "profile",
   "quiz-detail",
@@ -846,6 +853,279 @@ function GenericPageFixture(name: BoneyardSkeletonName) {
             ))}
           </Surface>
         </div>
+      );
+    case "participant-detail":
+      return (
+        <div className="space-y-5">
+          <AppTopbarFixture />
+          <Surface className="space-y-4">
+            <div className="flex items-center gap-4">
+              <AvatarStub className="size-14" />
+              <div className="space-y-2">
+                <Line className="h-6 w-48" />
+                <Pill className="w-28" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--surface-soft)] px-4 py-3 space-y-2">
+                  <Line className="h-3 w-20" />
+                  <Line className="h-6 w-28" />
+                </div>
+              ))}
+            </div>
+          </Surface>
+          <Surface className="space-y-4">
+            <Line className="h-5 w-40" />
+            <TableFixture rows={6} />
+          </Surface>
+          <Surface className="space-y-4">
+            <Line className="h-5 w-36" />
+            <ListFixture count={4} compact />
+          </Surface>
+        </div>
+      );
+    case "course-edit":
+      return (
+        <div className="space-y-5">
+          <AppTopbarFixture />
+          <IntroFixture titleWidth="w-48" subtitleWidth="w-64" withPill={false} />
+          <Surface className="max-w-xl space-y-5">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="space-y-2">
+                <Line className="h-3 w-24" />
+                <Line className="h-11 w-full rounded-[1rem]" />
+              </div>
+            ))}
+            <div className="flex justify-end gap-3 pt-2">
+              <ButtonStub className="w-24" />
+              <ButtonStub className="w-28" />
+            </div>
+          </Surface>
+        </div>
+      );
+    case "course-matriculaciones":
+      return (
+        <div className="space-y-5">
+          <AppTopbarFixture />
+          <IntroFixture titleWidth="w-56" subtitleWidth="w-64" withPill={false} />
+          <Surface className="overflow-hidden p-0">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-4 border-b border-[var(--line)] px-5 py-4 last:border-b-0">
+                <div className="size-9 shrink-0 rounded-full bg-[var(--surface-strong)]/90" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Line className="h-4 w-40" />
+                  <Line className="h-3 w-32" />
+                </div>
+                <Pill className="hidden w-16 sm:block" />
+                <ButtonStub className="w-20" />
+              </div>
+            ))}
+          </Surface>
+          <Surface className="space-y-4">
+            <Line className="h-4 w-40" />
+            <div className="space-y-2">
+              <Line className="h-3 w-24" />
+              <Line className="h-11 w-full rounded-[1rem]" />
+            </div>
+            <ButtonStub className="w-36" />
+          </Surface>
+        </div>
+      );
+    case "admin-categorias":
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Line className="h-8 w-40" />
+              <Pill className="w-8" />
+            </div>
+            <ButtonStub className="w-36" />
+          </div>
+          <Surface className="overflow-hidden p-0">
+            {[0, 0, 1, 1, 2, 0, 1].map((depth, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-4 border-b border-[var(--line)] px-5 py-4 last:border-b-0"
+                style={{ paddingLeft: `${1.25 + depth * 1.25}rem` }}
+              >
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Line className={cn("h-4", depth === 0 ? "w-44" : depth === 1 ? "w-36" : "w-28")} />
+                  <Line className="h-3 w-20" />
+                </div>
+                <Pill className="w-12" />
+                <ButtonStub className="hidden w-20 sm:block" />
+              </div>
+            ))}
+          </Surface>
+        </div>
+      );
+    case "admin-categoria-detail":
+      return (
+        <SplitContentFixture
+          sidebar={
+            <>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-24" />
+                {[
+                  ["w-32", "w-40"],
+                  ["w-28", "w-36"],
+                  ["w-20", "w-24"],
+                  ["w-28", "w-32"],
+                ].map(([labelW, valueW], i) => (
+                  <div key={i} className="space-y-1">
+                    <Line className={cn("h-3", labelW)} />
+                    <Line className={cn("h-4", valueW)} />
+                  </div>
+                ))}
+              </Surface>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-24" />
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3">
+                    <Line className="h-4 w-40" />
+                    <Pill className="w-12" />
+                  </div>
+                ))}
+              </Surface>
+              <Surface className="space-y-3 border border-[var(--line)]">
+                <Line className="h-3 w-28" />
+                <Line className="h-4 w-full" />
+                <ButtonStub className="w-28" />
+              </Surface>
+            </>
+          }
+          content={
+            <Surface className="space-y-5">
+              <Line className="h-3 w-24" />
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="space-y-2">
+                  <Line className="h-3 w-24" />
+                  <Line className="h-11 w-full rounded-[1rem]" />
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 pt-2">
+                <ButtonStub className="w-24" />
+                <ButtonStub className="w-28" />
+              </div>
+            </Surface>
+          }
+        />
+      );
+    case "admin-curso-detail":
+      return (
+        <SplitContentFixture
+          sidebar={
+            <>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-24" />
+                <div className="space-y-2">
+                  <Line className="h-3 w-20" />
+                  <Line className="h-11 w-full rounded-[1rem]" />
+                </div>
+                <ButtonStub className="w-28" />
+              </Surface>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-32" />
+                {[
+                  ["w-32", "w-48"],
+                  ["w-24", "w-36"],
+                  ["w-28", "w-40"],
+                  ["w-20", "w-28"],
+                  ["w-28", "w-36"],
+                ].map(([labelW, valueW], i) => (
+                  <div key={i} className="space-y-1">
+                    <Line className={cn("h-3", labelW)} />
+                    <Line className={cn("h-4", valueW)} />
+                  </div>
+                ))}
+              </Surface>
+              <Surface className="space-y-3 border border-[var(--line)]">
+                <Line className="h-3 w-28" />
+                <Line className="h-4 w-full" />
+                <ButtonStub className="w-28" />
+              </Surface>
+            </>
+          }
+          content={
+            <Surface className="space-y-5">
+              <Line className="h-3 w-32" />
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="space-y-2">
+                  <Line className="h-3 w-24" />
+                  <Line className="h-11 w-full rounded-[1rem]" />
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 pt-2">
+                <ButtonStub className="w-24" />
+                <ButtonStub className="w-28" />
+              </div>
+            </Surface>
+          }
+        />
+      );
+    case "admin-usuario-detail":
+      return (
+        <SplitContentFixture
+          sidebar={
+            <>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-36" />
+                {[
+                  ["w-32", "w-48"],
+                  ["w-28", "w-36"],
+                  ["w-24", "w-32"],
+                  ["w-28", "w-40"],
+                  ["w-20", "w-28"],
+                  ["w-32", "w-44"],
+                  ["w-24", "w-36"],
+                ].map(([labelW, valueW], i) => (
+                  <div key={i} className="space-y-1">
+                    <Line className={cn("h-3", labelW)} />
+                    <Line className={cn("h-4", valueW)} />
+                  </div>
+                ))}
+              </Surface>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-32" />
+                <Line className="h-4 w-full" />
+                <ButtonStub className="w-32" />
+              </Surface>
+              <Surface className="space-y-3">
+                <Line className="h-3 w-36" />
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <Line className="h-4 w-44" />
+                      <Line className="h-3 w-24" />
+                    </div>
+                    <Pill className="w-12" />
+                  </div>
+                ))}
+              </Surface>
+              <Surface className="space-y-3 border border-[var(--line)]">
+                <Line className="h-3 w-28" />
+                <Line className="h-4 w-full" />
+                <ButtonStub className="w-28" />
+              </Surface>
+            </>
+          }
+          content={
+            <Surface className="space-y-5">
+              <Line className="h-3 w-32" />
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="space-y-2">
+                  <Line className="h-3 w-24" />
+                  <Line className="h-11 w-full rounded-[1rem]" />
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 pt-2">
+                <ButtonStub className="w-24" />
+                <ButtonStub className="w-28" />
+              </div>
+            </Surface>
+          }
+        />
       );
     default:
       return (

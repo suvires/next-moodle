@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { resolveUserAccessProfile } from "@/lib/moodle";
+import { adminGetCategories, resolveUserAccessProfile } from "@/lib/moodle";
 import { requireSession } from "@/lib/session";
 import { CreateCourseForm } from "./create-course-form";
 
 export default async function NuevoCursoPage() {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -29,7 +29,7 @@ export default async function NuevoCursoPage() {
       </div>
 
       <div className="surface-card max-w-xl rounded-xl p-6">
-        <CreateCourseForm />
+        <CreateCourseForm categories={await adminGetCategories(session.token).catch(() => [])} />
       </div>
     </div>
   );

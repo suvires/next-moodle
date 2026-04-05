@@ -19,6 +19,7 @@ type LinkButtonProps = {
   target?: string;
   rel?: string;
   download?: string | boolean;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
 };
 
 export function LinkButton({

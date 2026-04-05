@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/administracion", label: "Panel" },
   { href: "/administracion/usuarios", label: "Usuarios" },
   { href: "/administracion/cursos", label: "Cursos" },
+  { href: "/administracion/categorias", label: "Categorías" },
   { href: "/administracion/matriculaciones", label: "Matriculaciones" },
   { href: "/administracion/cohortes", label: "Cohortes" },
 ];

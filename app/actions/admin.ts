@@ -23,10 +23,16 @@ import {
   adminDeleteCohort,
   adminAddCohortMember,
   adminRemoveCohortMember,
+  adminEnrolCohort,
+  adminCreateCategory,
+  adminUpdateCategory,
+  adminDeleteCategory,
   getSiteInfo,
   type CreateUserInput,
   type CreateCourseInput,
   type CreateCohortInput,
+  type CreateCategoryInput,
+  type UpdateCategoryInput,
 } from "@/lib/moodle";
 import {
   clearSessionIfAuthenticationError,
@@ -41,7 +47,7 @@ export type AdminActionState = {
 async function requireAdminSession() {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
   return { session, adminToken: session.token };
@@ -212,15 +218,110 @@ export async function updateCourseAction(
   const summary = String(formData.get("summary") || "").trim() || undefined;
   const visibleRaw = formData.get("visible");
   const visible = visibleRaw !== null ? visibleRaw !== "0" : undefined;
+  const categoryIdRaw = Number(formData.get("categoryId") || 0);
+  const categoryId = categoryIdRaw > 0 ? categoryIdRaw : undefined;
 
   try {
-    await adminUpdateCourse(adminToken, { id: courseId, fullname, shortname, summary, visible });
+    await adminUpdateCourse(adminToken, { id: courseId, fullname, shortname, summary, visible, categoryId });
     revalidatePath("/administracion/cursos");
     revalidatePath(`/administracion/cursos/${courseId}`);
+    revalidatePath(`/mis-cursos/${courseId}`);
+    revalidatePath("/mis-cursos");
     return { error: null, success: true };
   } catch (error) {
     if (await clearSessionIfAuthenticationError(error)) redirect("/");
     return handleAdminError(error, { courseId });
+  }
+}
+
+export async function bulkToggleCourseVisibilityAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const courseIdsRaw = String(formData.get("courseIds") || "[]");
+  const visible = formData.get("visible") === "1";
+
+  let courseIds: number[];
+  try {
+    courseIds = JSON.parse(courseIdsRaw);
+    if (!Array.isArray(courseIds) || courseIds.length === 0) throw new Error();
+  } catch {
+    return { error: "Selección de cursos inválida.", success: false };
+  }
+
+  try {
+    await Promise.all(
+      courseIds.map((id) => adminUpdateCourse(adminToken, { id, visible }))
+    );
+    revalidatePath("/administracion/cursos");
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { courseIds, visible });
+  }
+}
+
+export async function bulkMoveCoursesCategoryAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const courseIdsRaw = String(formData.get("courseIds") || "[]");
+  const categoryId = Number(formData.get("categoryId"));
+
+  if (!categoryId) return { error: "Selecciona una categoría de destino.", success: false };
+
+  let courseIds: number[];
+  try {
+    courseIds = JSON.parse(courseIdsRaw);
+    if (!Array.isArray(courseIds) || courseIds.length === 0) throw new Error();
+  } catch {
+    return { error: "Selección de cursos inválida.", success: false };
+  }
+
+  try {
+    await Promise.all(
+      courseIds.map((id) => adminUpdateCourse(adminToken, { id, categoryId }))
+    );
+    revalidatePath("/administracion/cursos");
+    revalidatePath("/administracion/categorias");
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { courseIds, categoryId });
+  }
+}
+
+export async function moveCourseAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const courseId = Number(formData.get("courseId"));
+  const categoryId = Number(formData.get("categoryId"));
+
+  if (!courseId) return { error: "ID de curso inválido.", success: false };
+  if (!categoryId) return { error: "Selecciona una categoría de destino.", success: false };
+
+  try {
+    await adminUpdateCourse(adminToken, { id: courseId, categoryId });
+    revalidatePath("/administracion/cursos");
+    revalidatePath(`/administracion/cursos/${courseId}`);
+    revalidatePath("/administracion/categorias");
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { courseId, categoryId });
   }
 }
 
@@ -245,6 +346,35 @@ export async function deleteCourseAction(
   redirect("/administracion/cursos");
 }
 
+export async function toggleCourseVisibilityAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const session = await requireSession();
+  const courseId = Number(formData.get("courseId"));
+  const visible = formData.get("visible") === "1";
+
+  if (!courseId) return { error: "ID de curso inválido.", success: false };
+
+  const profile = await resolveUserAccessProfile(session.token, session.userId).catch(() => null);
+  const capability = profile?.courseCapabilities.find((c) => c.courseId === courseId);
+
+  if (!capability?.canManageCourse) {
+    return { error: "No tienes permisos para cambiar la visibilidad de este curso.", success: false };
+  }
+
+  try {
+    await adminUpdateCourse(session.token, { id: courseId, visible });
+    revalidatePath(`/mis-cursos/${courseId}`);
+    revalidatePath("/mis-cursos");
+    revalidatePath("/administracion/cursos");
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { courseId, visible });
+  }
+}
+
 // ─── Enrollment actions ────────────────────────────────────────────────────────
 
 export async function enrolUserAction(
@@ -266,6 +396,7 @@ export async function enrolUserAction(
   try {
     await adminEnrolUser(adminToken, { userId, courseId, roleId });
     revalidatePath("/administracion/matriculaciones");
+    revalidatePath(`/mis-cursos/${courseId}/matriculaciones`);
     return { error: null, success: true };
   } catch (error) {
     if (await clearSessionIfAuthenticationError(error)) redirect("/");
@@ -291,6 +422,7 @@ export async function unenrolUserAction(
   try {
     await adminUnenrolUser(adminToken, { userId, courseId });
     revalidatePath("/administracion/matriculaciones");
+    revalidatePath(`/mis-cursos/${courseId}/matriculaciones`);
     return { error: null, success: true };
   } catch (error) {
     if (await clearSessionIfAuthenticationError(error)) redirect("/");
@@ -435,4 +567,116 @@ export async function removeCohortMemberAction(
     if (await clearSessionIfAuthenticationError(error)) redirect("/");
     return handleAdminError(error, { cohortId, userId });
   }
+}
+
+export async function enrollCohortAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const cohortId = Number(formData.get("cohortId"));
+  const courseId = Number(formData.get("courseId"));
+  const roleId = Number(formData.get("roleId") || 5);
+
+  if (!cohortId || !courseId) {
+    return { error: "ID de cohorte y curso son obligatorios.", success: false };
+  }
+
+  try {
+    await adminEnrolCohort(adminToken, { cohortId, courseId, roleId });
+    revalidatePath("/administracion/matriculaciones");
+    revalidatePath(`/mis-cursos/${courseId}/matriculaciones`);
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { cohortId, courseId });
+  }
+}
+
+// ─── Category actions ──────────────────────────────────────────────────────────
+
+export async function createCategoryAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const name = String(formData.get("name") || "").trim();
+  const parentId = Number(formData.get("parentId") || 0) || undefined;
+  const idNumber = String(formData.get("idNumber") || "").trim() || undefined;
+  const description = String(formData.get("description") || "").trim() || undefined;
+  const visible = formData.get("visible") !== "0";
+
+  if (!name) {
+    return { error: "El nombre de la categoría es obligatorio.", success: false };
+  }
+
+  const input: CreateCategoryInput = { name, parentId, idNumber, description, visible };
+
+  try {
+    await adminCreateCategory(adminToken, input);
+    revalidatePath("/administracion/categorias");
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { name });
+  }
+}
+
+export async function updateCategoryAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const categoryId = Number(formData.get("categoryId"));
+  if (!categoryId) return { error: "ID de categoría inválido.", success: false };
+
+  const name = String(formData.get("name") || "").trim() || undefined;
+  const idNumber = String(formData.get("idNumber") || "").trim() || undefined;
+  const description = String(formData.get("description") || "").trim() || undefined;
+  const visibleRaw = formData.get("visible");
+  const visible = visibleRaw !== null ? visibleRaw !== "0" : undefined;
+  const parentIdRaw = Number(formData.get("parentId") || 0);
+  const parentId = parentIdRaw > 0 ? parentIdRaw : undefined;
+
+  const input: UpdateCategoryInput = { id: categoryId, name, idNumber, description, visible, parentId };
+
+  try {
+    await adminUpdateCategory(adminToken, input);
+    revalidatePath("/administracion/categorias");
+    revalidatePath(`/administracion/categorias/${categoryId}`);
+    return { error: null, success: true };
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { categoryId });
+  }
+}
+
+export async function deleteCategoryAction(
+  _prev: AdminActionState,
+  formData: FormData
+): Promise<AdminActionState> {
+  const { adminToken } = await requireAdminSession().catch(() => {
+    redirect("/mis-cursos");
+  }) as Awaited<ReturnType<typeof requireAdminSession>>;
+
+  const categoryId = Number(formData.get("categoryId"));
+  if (!categoryId) return { error: "ID de categoría inválido.", success: false };
+
+  try {
+    await adminDeleteCategory(adminToken, categoryId);
+    revalidatePath("/administracion/categorias");
+  } catch (error) {
+    if (await clearSessionIfAuthenticationError(error)) redirect("/");
+    return handleAdminError(error, { categoryId });
+  }
+  redirect("/administracion/categorias");
 }

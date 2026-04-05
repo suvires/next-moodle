@@ -38,6 +38,7 @@ When a new Moodle service function is used:
 | `gradereport_overview_get_course_grades` | `getCourseGrades` | `lib/moodle.ts` |
 | `core_calendar_get_calendar_upcoming_view` | `getUpcomingEvents` | `lib/moodle.ts` |
 | `core_calendar_get_calendar_monthly_view` | `getMonthlyView` | `lib/moodle.ts` |
+| `core_course_get_course_module` | `getCourseModule` | `lib/moodle.ts` |
 | `mod_assign_get_assignments` | `getAssignments` | `lib/moodle.ts` |
 | `mod_assign_get_submission_status` | `getSubmissionStatus` | `lib/moodle.ts` |
 | `mod_assign_get_submissions` | `getAssignmentSubmissions` | `lib/moodle.ts` |
@@ -101,6 +102,9 @@ When a new Moodle service function is used:
 | `mod_h5pactivity_get_attempts` | `getH5PAttempts` | `lib/moodle.ts` |
 | `core_notes_get_course_notes` | `getCourseNotes` | `lib/moodle.ts` |
 | `core_group_get_course_user_groups` | `getCourseUserGroups` | `lib/moodle.ts` |
+| `core_group_get_course_groups` | `getCourseGroups` | `lib/moodle.ts` |
+| `core_group_get_group_members` | `getCourseGroupMembers` | `lib/moodle.ts` |
+| `enrol_cohort_enrol_users` | `adminEnrolCohort` | `lib/moodle.ts` |
 | `core_search_get_results` | `searchGlobal` | `lib/moodle.ts` |
 | `message_popup_get_popup_notifications` | `getNotifications` | `lib/moodle.ts` |
 | `message_popup_get_unread_popup_notification_count` | `getUnreadNotificationCount` | `lib/moodle.ts` |
@@ -117,6 +121,7 @@ When a new Moodle service function is used:
 | `mod_assign_save_submission` | `saveAssignmentSubmission` | `lib/moodle.ts` |
 | `core_course_get_updates_since` | `getCourseUpdatesSince` | `lib/moodle.ts` |
 | `core_message_mark_all_notifications_as_read` | `markAllNotificationsAsRead` | `lib/moodle.ts` |
+| `core_message_mark_notification_read` | `markNotificationRead` | `lib/moodle.ts` |
 | `core_message_mark_message_read` | `markMessageRead` | `lib/moodle.ts` |
 | `core_message_get_user_contacts` | `getContacts` | `lib/moodle.ts` |
 | `core_message_create_contact_request` | `addContact` | `lib/moodle.ts` |
@@ -138,4 +143,7 @@ When a new Moodle service function is used:
 | `core_cohort_delete_cohort_members` | `adminRemoveCohortMember` | `lib/moodle.ts` |
 | `core_cohort_get_cohort_members` | `adminGetCohortMembers` | `lib/moodle.ts` |
 | `core_auth_request_password_reset` | `requestPasswordReset` | `lib/moodle.ts` |
-| `core_course_get_categories` | `getCategoryNames` | `lib/moodle.ts` |
+| `core_course_get_categories` | `adminGetCategories` (replaces private `getCategoryNames`) | `lib/moodle.ts` |
+| `core_course_create_categories` | `adminCreateCategory` | `lib/moodle.ts` |
+| `core_course_update_categories` | `adminUpdateCategory` | `lib/moodle.ts` |
+| `core_course_delete_categories` | `adminDeleteCategory` | `lib/moodle.ts` |

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
+  adminGetCategories,
   adminGetCourses,
   resolveUserAccessProfile,
 } from "@/lib/moodle";
 import { requireSession } from "@/lib/session";
 import { EditCourseForm } from "./edit-course-form";
+import { MoveCourseForm } from "./move-course-form";
 
 export default async function CursoDetailPage({
   params,
@@ -14,7 +16,7 @@ export default async function CursoDetailPage({
 }) {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -30,6 +32,8 @@ export default async function CursoDetailPage({
   }
 
   if (!course) notFound();
+
+  const categories = await adminGetCategories(adminToken).catch(() => []);
 
   return (
     <div className="animate-rise-in flex flex-col gap-6">
@@ -60,6 +64,17 @@ export default async function CursoDetailPage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left: course details */}
         <div className="flex flex-col gap-4">
+          <div className="surface-card rounded-xl p-6">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+              Mover a categoría
+            </h2>
+            <MoveCourseForm
+              courseId={course.id}
+              currentCategoryId={course.categoryId}
+              categories={categories}
+            />
+          </div>
+
           <div className="surface-card rounded-xl p-6">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
               Información del curso
@@ -121,7 +136,7 @@ export default async function CursoDetailPage({
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
             Editar curso
           </h2>
-          <EditCourseForm course={course} />
+          <EditCourseForm course={course} categories={categories} />
         </div>
       </div>
     </div>

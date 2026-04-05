@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -44,12 +44,29 @@ export function ManualCompletionToggle({
     toggleManualCompletionAction,
     initialState
   );
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     if (state.success) {
-      router.refresh();
+      setShowSuccess(true);
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+        router.refresh();
+      }, 900);
+      return () => clearTimeout(timer);
     }
   }, [router, state.success]);
+
+  if (showSuccess) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success)]/12 px-3 py-1.5 text-xs font-semibold text-[var(--success)]">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {isCompleted ? "Marcada pendiente" : "¡Completada!"}
+      </span>
+    );
+  }
 
   return (
     <form action={formAction} className="flex flex-col items-start gap-2">

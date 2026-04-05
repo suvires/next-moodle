@@ -177,7 +177,7 @@ const detectForceLoginViaRedirect = cache(async (): Promise<boolean> => {
 export async function getSiteForceLogin(): Promise<boolean> {
   // 1. Mobile plugin config (available on instances with the Mobile App service enabled)
   const config = await getMoodlePublicConfig().catch(() => null);
-  if (config) return Boolean(config.forcelogin);
+  if (config && config.forcelogin !== undefined) return Boolean(config.forcelogin);
 
   // 2. Redirect probe — works on any Moodle regardless of plugins
   return detectForceLoginViaRedirect();

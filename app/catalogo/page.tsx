@@ -84,6 +84,10 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
         <PublicTopbar />
 
         <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-5 py-8 md:px-8 md:py-10">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+            Catálogo de cursos
+          </h1>
+
           {errorMessage ? (
             <div className="banner-danger">{errorMessage}</div>
           ) : null}
@@ -97,21 +101,18 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[{ label: "Catálogo" }]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="animate-rise-in">
           <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
             Catálogo de cursos
           </h1>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Busca cursos disponibles e inscríbete.
-          </p>
         </div>
 
         <form action="/catalogo" method="GET" className="flex gap-3">
@@ -167,7 +168,7 @@ export default async function CatalogoPage({ searchParams }: CatalogoPageProps) 
             Escribe un término de búsqueda para explorar los cursos disponibles.
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

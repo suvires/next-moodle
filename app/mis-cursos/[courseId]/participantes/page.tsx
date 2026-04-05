@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { CourseRoleActionGrid } from "@/app/components/course-role-action-grid";
@@ -6,11 +7,13 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { logger } from "@/lib/logger";
 import {
+  getCourseGroups,
   getCourseParticipants,
   getUserCourses,
   isAccessException,
   isAuthenticationError,
   resolveUserAccessProfile,
+  type MoodleGroup,
   type MoodleCourseAccessProfile,
   type MoodleCourseParticipant,
 } from "@/lib/moodle";
@@ -72,19 +75,22 @@ export default async function ParticipantsPage({
 
   let courses = [] as Awaited<ReturnType<typeof getUserCourses>>;
   let participants: MoodleCourseParticipant[] = [];
+  let groups: MoodleGroup[] = [];
   let errorMessage: string | null = null;
   let expiredSession = false;
   let courseAccess: MoodleCourseAccessProfile | null = null;
 
   try {
-    const [coursesResult, participantsResult, accessProfile] = await Promise.all([
+    const [coursesResult, participantsResult, accessProfile, groupsResult] = await Promise.all([
       getUserCourses(session.token, session.userId),
       getCourseParticipants(session.token, parsedCourseId),
       resolveUserAccessProfile(session.token, session.userId).catch(() => null),
+      getCourseGroups(session.token, parsedCourseId).catch(() => []),
     ]);
 
     courses = coursesResult;
     participants = participantsResult;
+    groups = groupsResult;
     courseAccess =
       accessProfile?.courseCapabilities.find(
         (course) => course.courseId === parsedCourseId
@@ -146,9 +152,8 @@ export default async function ParticipantsPage({
   };
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[
@@ -156,7 +161,8 @@ export default async function ParticipantsPage({
             { label: course?.fullname ?? "Curso", href: `/mis-cursos/${parsedCourseId}` },
             { label: "Participantes" },
           ]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div>
           <div
@@ -229,6 +235,27 @@ export default async function ParticipantsPage({
           </Card>
         ) : null}
 
+        {groups.length > 0 ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <h2 className="text-lg font-semibold">Grupos</h2>
+              <Separator className="my-3" />
+              <div className="flex flex-wrap gap-2">
+                {groups.map((group) => (
+                  <span key={group.id} className="chip chip-muted">
+                    {group.name}
+                  </span>
+                ))}
+              </div>
+              {groups.length > 0 ? (
+                <p className="mt-3 text-xs text-[var(--color-muted)]">
+                  {groups.length} {groups.length === 1 ? "grupo configurado" : "grupos configurados"} en este curso.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         {participants.length > 0 ? (
           <section className="flex flex-col gap-3">
             {participants.map((participant) => (
@@ -249,9 +276,18 @@ export default async function ParticipantsPage({
                       </Avatar>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[var(--color-foreground)]">
-                          {participant.fullName}
-                        </p>
+                        {effectiveCourseAccess.canManageCourse ? (
+                          <Link
+                            href={`/mis-cursos/${parsedCourseId}/participantes/${participant.id}`}
+                            className="text-sm font-semibold text-[var(--foreground)] underline-offset-2 hover:underline"
+                          >
+                            {participant.fullName}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-semibold text-[var(--color-foreground)]">
+                            {participant.fullName}
+                          </p>
+                        )}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {getParticipantRoleChips(participant).map((role) => (
                             <span
@@ -265,7 +301,7 @@ export default async function ParticipantsPage({
                       </div>
                     </div>
 
-                    <div className="grid gap-2 text-sm text-[var(--color-muted)] md:text-right">
+                    <div className="flex flex-col gap-2 text-sm text-[var(--color-muted)] md:items-end md:text-right">
                       <p>
                         <span className="font-medium text-[var(--color-foreground)]">
                           Último acceso:
@@ -280,6 +316,14 @@ export default async function ParticipantsPage({
                           {participant.email}
                         </p>
                       ) : null}
+                      {effectiveCourseAccess.canManageCourse ? (
+                        <Link
+                          href={`/mis-cursos/${parsedCourseId}/participantes/${participant.id}`}
+                          className="text-xs font-medium text-[var(--accent)] hover:underline"
+                        >
+                          Ver reporte →
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
@@ -291,7 +335,7 @@ export default async function ParticipantsPage({
             Moodle no ha devuelto participantes visibles para este curso.
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

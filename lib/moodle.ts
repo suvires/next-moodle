@@ -20,6 +20,7 @@ export type MoodleCourse = {
   fullname: string;
   shortname: string;
   summary?: string;
+  categoryname?: string;
 };
 
 export type MoodleModuleContent = {
@@ -539,6 +540,7 @@ export type MoodleCourseAccessProfile = {
   courseId: number;
   fullname: string;
   shortname?: string;
+  categoryName?: string;
   summary?: string;
   roleBucket: MoodleCourseRoleBucket;
   roles: MoodleCourseRoleAssignment[];
@@ -810,6 +812,7 @@ function deriveCourseAccessProfile(
     courseId: course.id,
     fullname: course.fullname,
     shortname: course.shortname || undefined,
+    categoryName: course.categoryname || undefined,
     summary: course.summary || undefined,
     roleBucket,
     roles,
@@ -1217,6 +1220,7 @@ export async function getUserCourses(token: string, userId: number) {
     fullname: course.fullname,
     shortname: course.shortname,
     summary: course.summary,
+    categoryname: course.categoryname,
   }));
 }
 
@@ -1224,43 +1228,10 @@ export async function searchCoursesWithServerToken(query: string) {
   return searchCourses(getServerMoodleToken(), query);
 }
 
-async function getCategoryNames(token: string, categoryIds: number[]): Promise<Map<number, string>> {
-  if (categoryIds.length === 0) return new Map();
-  const params: Record<string, string> = { "addsubcategories": "0" };
-  categoryIds.forEach((id, i) => {
-    params[`criteria[${i}][key]`] = "id";
-    params[`criteria[${i}][value]`] = String(id);
-  });
-  type RawCategory = { id: number; name: string };
-  const result = await moodleRequest<{ categories?: RawCategory[] }>(
-    token,
-    "core_course_get_categories",
-    params
-  ).catch(() => null);
-  const map = new Map<number, string>();
-  for (const cat of result?.categories ?? []) {
-    map.set(cat.id, cat.name);
-  }
-  return map;
-}
-
 export async function getPublicCatalogCoursesWithServerToken(): Promise<MoodleCatalogCourse[]> {
   const token = getServerMoodleToken();
-  const courses = await adminGetCourses(token);
-  const visible = courses.filter((course) => course.visible);
-
-  const categoryIds = [...new Set(visible.map((c) => c.categoryId).filter((id): id is number => id != null))];
-  const categoryNames = await getCategoryNames(token, categoryIds);
-
-  return visible
-    .map((course) => ({
-      id: course.id,
-      fullname: course.fullname,
-      summary: course.summary || undefined,
-      categoryName: (course.categoryId ? categoryNames.get(course.categoryId) : undefined) || course.categoryName || undefined,
-      enrolledUsersCount: course.enrolledUserCount ?? 0,
-    }))
-    .sort((a, b) => a.fullname.localeCompare(b.fullname, "es"));
+  const courses = await searchCourses(token, "");
+  return courses.sort((a, b) => a.fullname.localeCompare(b.fullname, "es"));
 }
 
 export async function getForumsByCourses(token: string, courseIds: number[]) {
@@ -2081,6 +2052,7 @@ export type MoodleCalendarEvent = {
   name: string;
   description?: string;
   moduleName?: string;
+  instance?: number;
   eventType: string;
   courseId?: number;
   courseName?: string;
@@ -2095,6 +2067,7 @@ function mapCalendarEvent(e: RawMoodleCalendarEvent): MoodleCalendarEvent {
     name: e.name,
     description: e.description || undefined,
     moduleName: e.modulename || undefined,
+    instance: e.instance || undefined,
     eventType: e.eventtype || "unknown",
     courseId: e.courseid || e.course?.id || undefined,
     courseName: e.course?.fullname || undefined,
@@ -2102,6 +2075,23 @@ function mapCalendarEvent(e: RawMoodleCalendarEvent): MoodleCalendarEvent {
     duration: e.timeduration || undefined,
     url: e.url || undefined,
   };
+}
+
+export async function getCourseModule(
+  token: string,
+  cmid: number
+): Promise<{ modname: string; instance: number; courseId: number } | null> {
+  const result = await moodleRequest<{
+    cm?: {
+      id?: number;
+      course?: number;
+      modname?: string;
+      instance?: number;
+    };
+  }>(token, "core_course_get_course_module", { cmid: String(cmid) });
+  const cm = result.cm;
+  if (!cm?.modname || cm.instance == null || !cm?.course) return null;
+  return { modname: cm.modname, instance: cm.instance, courseId: cm.course };
 }
 
 export async function getUpcomingEvents(
@@ -4450,6 +4440,41 @@ export type MoodleGroup = {
   description?: string;
 };
 
+export async function getCourseGroups(
+  token: string,
+  courseId: number
+): Promise<MoodleGroup[]> {
+  const result = await moodleRequest<
+    Array<{
+      id: number;
+      name: string;
+      description?: string;
+      courseid?: number;
+    }>
+  >(token, "core_group_get_course_groups", {
+    courseid: String(courseId),
+  });
+
+  return (result ?? []).map((g) => ({
+    id: g.id,
+    name: g.name,
+    description: g.description || undefined,
+  }));
+}
+
+export async function getCourseGroupMembers(
+  token: string,
+  groupId: number
+): Promise<number[]> {
+  type RawGroupMembers = Array<{ groupid: number; userids: number[] }>;
+  const result = await moodleRequest<RawGroupMembers>(
+    token,
+    "core_group_get_group_members",
+    { "groupids[0]": String(groupId) }
+  );
+  return result[0]?.userids ?? [];
+}
+
 export async function getCourseUserGroups(
   token: string,
   courseId: number,
@@ -4644,6 +4669,7 @@ type RawMoodleCatalogCourse = {
   summary?: string;
   categoryname?: string;
   enrolleduserscount?: number;
+  overviewfiles?: Array<{ fileurl?: string; mimetype?: string }>;
 };
 
 export type MoodleCatalogCourse = {
@@ -4653,6 +4679,7 @@ export type MoodleCatalogCourse = {
   summary?: string;
   categoryName?: string;
   enrolledUsersCount: number;
+  courseImageUrl?: string;
 };
 
 export async function searchCourses(
@@ -4665,17 +4692,21 @@ export async function searchCourses(
     criterianame: "search",
     criteriavalue: query,
     page: "0",
-    perpage: "50",
+    perpage: "500",
   });
 
-  return (result.courses || []).map((c) => ({
-    id: c.id,
-    fullname: c.fullname,
-    shortname: c.shortname || undefined,
-    summary: c.summary || undefined,
-    categoryName: c.categoryname || undefined,
-    enrolledUsersCount: c.enrolleduserscount ?? 0,
-  }));
+  return (result.courses || []).map((c) => {
+    const imageFile = c.overviewfiles?.find((f) => f.mimetype?.startsWith("image/"));
+    return {
+      id: c.id,
+      fullname: c.fullname,
+      shortname: c.shortname || undefined,
+      summary: c.summary || undefined,
+      categoryName: c.categoryname || undefined,
+      enrolledUsersCount: c.enrolleduserscount ?? 0,
+      courseImageUrl: imageFile?.fileurl || undefined,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -5072,6 +5103,16 @@ export async function markAllNotificationsAsRead(
   );
 }
 
+export async function markNotificationRead(
+  token: string,
+  notificationId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_message_mark_notification_read", {
+    notificationid: String(notificationId),
+    timeread: String(Math.floor(Date.now() / 1000)),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Message Read Status
 // ---------------------------------------------------------------------------
@@ -5264,6 +5305,7 @@ type RawAdminCourse = {
   enrolledusercount?: number;
   timecreated?: number;
   format?: string;
+  overviewfiles?: Array<{ fileurl?: string; mimetype?: string }>;
 };
 
 export type AdminCourse = {
@@ -5280,9 +5322,11 @@ export type AdminCourse = {
   enrolledUserCount?: number;
   timeCreated?: number;
   format?: string;
+  courseImageUrl?: string;
 };
 
 function normalizeAdminCourse(c: RawAdminCourse): AdminCourse {
+  const imageFile = c.overviewfiles?.find((f) => f.mimetype?.startsWith("image/"));
   return {
     id: c.id,
     shortname: c.shortname ?? "",
@@ -5290,13 +5334,14 @@ function normalizeAdminCourse(c: RawAdminCourse): AdminCourse {
     displayname: c.displayname,
     summary: c.summary,
     categoryId: c.categoryid,
-    categoryName: c.categoryname,
+    categoryName: c.categoryname || undefined,
     visible: (c.visible ?? 1) === 1,
     startDate: c.startdate,
     endDate: c.enddate,
     enrolledUserCount: c.enrolledusercount,
     timeCreated: c.timecreated,
     format: c.format,
+    courseImageUrl: imageFile?.fileurl || undefined,
   };
 }
 
@@ -5377,6 +5422,7 @@ export type UpdateCourseInput = {
   id: number;
   fullname?: string;
   shortname?: string;
+  categoryId?: number;
   summary?: string;
   visible?: boolean;
   startDate?: number;
@@ -5525,6 +5571,7 @@ export async function adminUpdateCourse(
   };
   if (input.fullname !== undefined) params["courses[0][fullname]"] = input.fullname;
   if (input.shortname !== undefined) params["courses[0][shortname]"] = input.shortname;
+  if (input.categoryId !== undefined) params["courses[0][categoryid]"] = String(input.categoryId);
   if (input.summary !== undefined) params["courses[0][summary]"] = input.summary;
   if (input.visible !== undefined) params["courses[0][visible]"] = input.visible ? "1" : "0";
   if (input.startDate !== undefined) params["courses[0][startdate]"] = String(input.startDate);
@@ -5717,6 +5764,142 @@ export async function adminRemoveCohortMember(
   await moodleRequest<unknown>(token, "core_cohort_delete_cohort_members", {
     "members[0][cohortid]": String(cohortId),
     "members[0][userid]": String(userId),
+  });
+}
+
+export async function adminEnrolCohort(
+  token: string,
+  params: { cohortId: number; courseId: number; roleId?: number }
+): Promise<void> {
+  const body: Record<string, string> = {
+    "enrolments[0][cohortid]": String(params.cohortId),
+    "enrolments[0][courseid]": String(params.courseId),
+  };
+  if (params.roleId) {
+    body["enrolments[0][roleid]"] = String(params.roleId);
+  }
+  await moodleRequest<unknown>(token, "enrol_cohort_enrol_users", body);
+}
+
+// ─── Admin: Category management ───────────────────────────────────────────────
+
+export type MoodleCategory = {
+  id: number;
+  name: string;
+  idNumber?: string;
+  description?: string;
+  parentId?: number;
+  courseCount?: number;
+  visible?: boolean;
+  depth?: number;
+  path?: string;
+};
+
+export type CreateCategoryInput = {
+  name: string;
+  parentId?: number;
+  idNumber?: string;
+  description?: string;
+  visible?: boolean;
+};
+
+export type UpdateCategoryInput = {
+  id: number;
+  name?: string;
+  idNumber?: string;
+  description?: string;
+  visible?: boolean;
+  parentId?: number;
+};
+
+export async function adminGetCategories(
+  token: string,
+  categoryIds?: number[]
+): Promise<MoodleCategory[]> {
+  const params: Record<string, string> = { addsubcategories: "1" };
+  if (categoryIds && categoryIds.length > 0) {
+    categoryIds.forEach((id, i) => {
+      params[`criteria[${i}][key]`] = "id";
+      params[`criteria[${i}][value]`] = String(id);
+    });
+  }
+  type RawCategory = {
+    id: number;
+    name: string;
+    idnumber?: string;
+    description?: string;
+    parent?: number;
+    coursecount?: number;
+    visible?: number;
+    depth?: number;
+    path?: string;
+  };
+  const result = await moodleRequest<RawCategory[]>(
+    token,
+    "core_course_get_categories",
+    params
+  );
+  return (result ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    idNumber: c.idnumber || undefined,
+    description: c.description || undefined,
+    parentId: c.parent ?? undefined,
+    courseCount: c.coursecount,
+    visible: c.visible !== undefined ? Boolean(c.visible) : undefined,
+    depth: c.depth,
+    path: c.path || undefined,
+  }));
+}
+
+export async function adminCreateCategory(
+  token: string,
+  input: CreateCategoryInput
+): Promise<MoodleCategory> {
+  const params: Record<string, string> = {
+    "categories[0][name]": input.name,
+    "categories[0][parent]": String(input.parentId ?? 0),
+  };
+  if (input.idNumber) params["categories[0][idnumber]"] = input.idNumber;
+  if (input.description) params["categories[0][description]"] = input.description;
+  if (input.visible !== undefined) params["categories[0][visible]"] = input.visible ? "1" : "0";
+  type RawCreated = { id: number; name: string };
+  const result = await moodleRequest<RawCreated[]>(
+    token,
+    "core_course_create_categories",
+    params
+  );
+  return {
+    id: result[0].id,
+    name: result[0].name,
+    parentId: input.parentId ?? 0,
+    visible: input.visible ?? true,
+  };
+}
+
+export async function adminUpdateCategory(
+  token: string,
+  input: UpdateCategoryInput
+): Promise<void> {
+  const params: Record<string, string> = {
+    "categories[0][id]": String(input.id),
+  };
+  if (input.name !== undefined) params["categories[0][name]"] = input.name;
+  if (input.idNumber !== undefined) params["categories[0][idnumber]"] = input.idNumber;
+  if (input.description !== undefined) params["categories[0][description]"] = input.description;
+  if (input.visible !== undefined) params["categories[0][visible]"] = input.visible ? "1" : "0";
+  if (input.parentId !== undefined) params["categories[0][parent]"] = String(input.parentId);
+  await moodleRequest<unknown>(token, "core_course_update_categories", params);
+}
+
+export async function adminDeleteCategory(
+  token: string,
+  categoryId: number
+): Promise<void> {
+  await moodleRequest<unknown>(token, "core_course_delete_categories", {
+    "categories[0][id]": String(categoryId),
+    "categories[0][newparent]": "0",
+    "categories[0][recursive]": "0",
   });
 }
 

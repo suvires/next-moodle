@@ -141,16 +141,16 @@ export default async function FeedbackDetailPage({
     };
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Encuesta"
           actions={
             <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="ghost" size="sm">Volver</LinkButton>
           }
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div>
           <div
@@ -283,7 +283,7 @@ export default async function FeedbackDetailPage({
             No hay preguntas disponibles para esta encuesta.
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

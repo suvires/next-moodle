@@ -291,16 +291,16 @@ export default async function ScormPage({ params }: ScormPageProps) {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Contenido interactivo"
           actions={
             <LinkButton href={`/mis-cursos/${parsedCourseId}`} variant="outline" size="sm">Volver al curso</LinkButton>
           }
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="flex flex-col gap-1">
           <p className="text-sm text-[var(--color-muted)]">
@@ -386,7 +386,7 @@ export default async function ScormPage({ params }: ScormPageProps) {
             )}
           </>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

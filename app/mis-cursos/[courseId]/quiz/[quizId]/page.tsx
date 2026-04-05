@@ -496,9 +496,8 @@ export default async function QuizDetailPage({
   );
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           sectionLabel="Cuestionario"
@@ -520,7 +519,8 @@ export default async function QuizDetailPage({
               </Link>
             </div>
           }
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div>
           <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${getCourseRoleTone(effectiveCourseAccess.roleBucket)}`}>
@@ -694,6 +694,50 @@ export default async function QuizDetailPage({
             ) : null}
           </CardContent>
         </Card>
+
+        {canParticipateAsStudent &&
+        bestAttempt &&
+        !attemptData &&
+        !attemptSummary &&
+        !attemptReview ? (
+          <Card className="rounded-xl border-[var(--success)]/25 bg-[var(--success)]/5">
+            <CardContent className="px-5 py-5 md:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--success)]">
+                    Resultado
+                  </p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-4xl font-bold text-[var(--foreground)]">
+                      {bestAttempt.grade?.toFixed(2)}
+                    </span>
+                    {quiz?.maxGrade ? (
+                      <span className="text-lg text-[var(--muted)]">
+                        / {quiz.maxGrade}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    Mejor calificación obtenida
+                    {attempts.filter((a) => a.state === "finished").length > 1
+                      ? ` · ${attempts.filter((a) => a.state === "finished").length} intentos finalizados`
+                      : ""}
+                  </p>
+                </div>
+                {accessInfo?.canReviewMyAttempts ? (
+                  <Link
+                    href={buildQuizRoute(parsedCourseId, parsedQuizId, {
+                      review: bestAttempt.id,
+                    })}
+                    className="inline-flex items-center rounded-full border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-2 text-sm font-medium text-[var(--success)] transition hover:bg-[var(--success)]/15"
+                  >
+                    Revisar intento
+                  </Link>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {canStartAttempt ? (
           <Card className="rounded-xl">
@@ -1160,7 +1204,7 @@ export default async function QuizDetailPage({
                 : "Selecciona un participante para consultar sus intentos."}
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

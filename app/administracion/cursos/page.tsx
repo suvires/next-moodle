@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  adminGetCategories,
   adminGetCourses,
   resolveUserAccessProfile,
 } from "@/lib/moodle";
 import { requireSession } from "@/lib/session";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
+import { CourseBulkList } from "./course-bulk-list";
 
 export default async function CursosPage({
   searchParams,
@@ -15,7 +17,7 @@ export default async function CursosPage({
 }) {
   const session = await requireSession();
   const profile = await resolveUserAccessProfile(session.token, session.userId);
-  if (!profile.isAdministrator && !profile.canManagePlatform) {
+  if (!profile.canManagePlatform) {
     redirect("/mis-cursos");
   }
 
@@ -25,12 +27,22 @@ export default async function CursosPage({
   let courses: Awaited<ReturnType<typeof adminGetCourses>> = [];
   let fetchError: string | null = null;
 
-  try {
-    courses = await adminGetCourses(adminToken);
-  } catch (err) {
+  const [coursesResult, categoriesResult] = await Promise.allSettled([
+    adminGetCourses(adminToken),
+    adminGetCategories(adminToken),
+  ]);
+
+  if (coursesResult.status === "fulfilled") {
+    courses = coursesResult.value;
+  } else {
     fetchError =
-      err instanceof Error ? err.message : "Error al cargar los cursos.";
+      coursesResult.reason instanceof Error
+        ? coursesResult.reason.message
+        : "Error al cargar los cursos.";
   }
+
+  const categories =
+    categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
 
   const filtered = q
     ? courses.filter((c) => c.fullname.toLowerCase().includes(q.toLowerCase()))
@@ -98,36 +110,9 @@ export default async function CursosPage({
         </div>
       )}
 
-      {/* Course grid */}
+      {/* Course list with bulk selection */}
       {!fetchError && filtered.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((course) => (
-            <Link
-              key={course.id}
-              href={`/administracion/cursos/${course.id}`}
-              className="surface-card flex flex-col gap-3 rounded-xl p-5 transition hover:shadow-md"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="chip chip-muted">{course.shortname}</span>
-                <span
-                  className={
-                    course.visible ? "chip chip-success" : "chip chip-warning"
-                  }
-                >
-                  {course.visible ? "Visible" : "Oculto"}
-                </span>
-              </div>
-              <h3 className="font-semibold leading-snug text-[var(--foreground)]">
-                {course.fullname}
-              </h3>
-              {course.enrolledUserCount !== undefined && (
-                <p className="text-xs text-[var(--muted)]">
-                  {course.enrolledUserCount.toLocaleString("es-ES")} matriculados
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
+        <CourseBulkList courses={filtered} categories={categories} />
       )}
     </div>
   );

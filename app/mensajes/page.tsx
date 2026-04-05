@@ -77,13 +77,13 @@ export default async function MessagesPage() {
   const unreadCount = conversations.filter((c) => !c.isRead).length;
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[{ label: "Mensajes" }]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="flex items-baseline justify-between gap-4">
           <div>
@@ -180,7 +180,7 @@ export default async function MessagesPage() {
             No hay conversaciones.
           </p>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

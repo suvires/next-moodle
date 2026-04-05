@@ -1,4 +1,5 @@
 {
+  "url": "http://localhost:3000/boneyard",
   "out": "./app/bones/generated",
   "breakpoints": [375, 768, 1280],
   "wait": 800

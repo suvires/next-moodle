@@ -179,6 +179,18 @@ export function getCourseOverviewActionSections(
       tone: "warning",
       actions: [
         {
+          title: "Editar curso",
+          body: "Modifica nombre, categoría, visibilidad y descripción del curso.",
+          href: `/mis-cursos/${courseId}/editar`,
+          tone: "warning",
+        },
+        {
+          title: "Matriculaciones",
+          body: "Inscribe o da de baja usuarios en este curso.",
+          href: `/mis-cursos/${courseId}/matriculaciones`,
+          tone: "warning",
+        },
+        {
           title: "Calificaciones",
           body: "Centraliza la revisión de evaluación desde la vista del curso.",
           href: `/mis-cursos/${courseId}/calificaciones`,
@@ -189,16 +201,6 @@ export function getCourseOverviewActionSections(
           body: "Consulta el resumen global del curso para seguimiento y supervisión.",
           href: `/mis-cursos/${courseId}/reportes`,
           tone: "warning",
-        },
-        {
-          title: "Catálogo",
-          body: "Comprueba cómo se presenta la oferta formativa fuera del curso.",
-          href: "/catalogo",
-        },
-        {
-          title: "Buscar",
-          body: "Accede a búsqueda global para supervisión transversal del contenido.",
-          href: "/buscar",
         },
       ],
     },

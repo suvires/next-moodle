@@ -356,9 +356,8 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <AppTopbar
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
           breadcrumbs={[
@@ -366,7 +365,8 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
             { label: course?.fullname ?? "Curso", href: `/mis-cursos/${parsedCourseId}` },
             { label: resourceModule?.name ?? "Recurso" },
           ]}
-        />
+      />
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-5 py-6 md:px-8 md:py-8">
 
         <div className="flex flex-col gap-1">
           {course ? (
@@ -503,7 +503,7 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
             />
           </>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

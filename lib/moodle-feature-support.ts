@@ -4,6 +4,8 @@ const FEATURE_FUNCTIONS = {
   h5p: ["mod_h5pactivity_get_h5pactivities_by_courses", "mod_h5pactivity_get_attempts"],
   competencyStatus: ["tool_lp_data_for_user_competency_summary_in_course"],
   cohortMemberRemoval: ["core_cohort_delete_cohort_members"],
+  courseUpdate: ["core_course_update_courses"],
+  manualEnrol: ["enrol_manual_enrol_users", "enrol_manual_unenrol_users"],
 } as const;
 
 export type MoodleFeatureSupportKey = keyof typeof FEATURE_FUNCTIONS;
@@ -20,6 +22,10 @@ const UNAVAILABLE_MESSAGES: Record<MoodleFeatureSupportKey, string> = {
     "Tu sitio no expone la API de estado individual de competencias. Se mostrará el listado, pero no el progreso detallado por usuario.",
   cohortMemberRemoval:
     "Tu sitio no expone la API para quitar miembros de una cohorte desde la app.",
+  courseUpdate:
+    "Tu sitio no expone la API de actualización de cursos. La edición de curso no está disponible para gestores desde la app.",
+  manualEnrol:
+    "Tu sitio no expone la API de matriculación manual. La gestión de matriculaciones no está disponible para gestores desde la app.",
 };
 
 export function resolveMoodleFeatureSupport(
