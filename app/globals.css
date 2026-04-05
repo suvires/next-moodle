@@ -1,49 +1,90 @@
 @import "tailwindcss";
 
+/* ── Design Tokens ──────────────────────────────── */
+
 :root {
-  --background: #07111f;
-  --foreground: #eff5ff;
-  --surface: rgba(11, 20, 35, 0.78);
-  --surface-strong: rgba(15, 26, 45, 0.94);
-  --surface-soft: rgba(255, 255, 255, 0.04);
-  --paper: rgba(11, 20, 35, 0.88);
-  --ink: #f8fbff;
-  --accent: #ff8a3d;
-  --accent-soft: #ffbf90;
-  --accent-cool: #66d7ff;
-  --line: rgba(150, 185, 255, 0.14);
-  --line-strong: rgba(255, 255, 255, 0.14);
-  --muted: #94a6c9;
-  --danger: #ff7c7c;
-  --shadow: 0 30px 120px rgba(0, 6, 18, 0.46);
+  /* Base */
+  --background: #f7f7f8;
+  --foreground: #1c1c1e;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-strong: #ebebed;
+  --surface-soft: rgba(0, 0, 0, 0.02);
+
+  /* Brand accent (green) */
+  --accent: #1db954;
+  --accent-soft: #1ed760;
+  --accent-foreground: #ffffff;
+
+  /* Cool accent */
+  --accent-cool: #3b7dd8;
+
+  /* Text */
+  --muted: #6b6b6b;
+
+  /* Borders */
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.18);
+
+  /* Feedback */
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.08);
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.08);
+  --success: #16a34a;
+  --success-soft: rgba(22, 163, 74, 0.08);
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.04);
+
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
 }
+
+/* ── Tailwind Theme ─────────────────────────────── */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-surface-soft: var(--surface-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-cool: var(--accent-cool);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --font-sans: "Avenir Next", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-display: "Avenir Next", "Avenir Next Condensed", "Arial Narrow", sans-serif;
 }
+
+/* ── Base ───────────────────────────────────────── */
 
 * {
   box-sizing: border-box;
 }
 
 html {
-  background:
-    radial-gradient(circle at 12% 12%, rgba(255, 138, 61, 0.16), transparent 22%),
-    radial-gradient(circle at 88% 10%, rgba(102, 215, 255, 0.14), transparent 20%),
-    radial-gradient(circle at 50% 100%, rgba(17, 31, 54, 0.8), transparent 36%),
-    linear-gradient(180deg, #0a1525 0%, #07111f 44%, #050c17 100%);
+  background: var(--background);
 }
 
 body {
   min-height: 100%;
   color: var(--foreground);
-  font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.08), transparent 18%),
-    linear-gradient(180deg, rgba(11, 19, 32, 0.84), rgba(4, 10, 19, 0.96));
+  font-family: "Avenir Next", "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  background: var(--background);
 }
 
 a {
@@ -52,45 +93,16 @@ a {
 }
 
 ::selection {
-  color: #08111f;
-  background: rgba(255, 191, 144, 0.88);
+  color: #fff;
+  background: var(--accent);
 }
+
+/* ── Utility Classes ────────────────────────────── */
 
 .surface-card {
-  background:
-    linear-gradient(180deg, rgba(15, 26, 45, 0.96), rgba(9, 17, 31, 0.92)),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 45%);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(28px);
-}
-
-.grain-overlay {
-  position: relative;
-  isolation: isolate;
-}
-
-.grain-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(102, 215, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(102, 215, 255, 0.06) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 100%);
-  opacity: 0.4;
-}
-
-.grain-overlay::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.12;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0.7px, transparent 0.7px);
-  background-size: 13px 13px;
-  mix-blend-mode: soft-light;
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
 }
 
 .text-balance {
@@ -100,45 +112,12 @@ a {
 .display-face {
   font-family: "Avenir Next", "Avenir Next Condensed", "Arial Narrow", sans-serif;
   font-weight: 700;
-  letter-spacing: -0.04em;
-}
-
-.ambient-orb {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(18px);
-  opacity: 0.95;
-  z-index: -1;
-}
-
-.ambient-orb-blue {
-  background: radial-gradient(circle, rgba(102, 215, 255, 0.26) 0%, rgba(102, 215, 255, 0.05) 58%, transparent 78%);
-}
-
-.ambient-orb-white {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.04) 54%, transparent 76%);
-}
-
-.app-grid {
-  position: relative;
-}
-
-.app-grid::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  pointer-events: none;
+  letter-spacing: -0.03em;
 }
 
 .topbar-panel {
-  background:
-    linear-gradient(180deg, rgba(10, 18, 32, 0.92), rgba(10, 18, 32, 0.78)),
-    linear-gradient(120deg, rgba(255, 138, 61, 0.05), rgba(102, 215, 255, 0.04));
-  backdrop-filter: blur(26px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 22px 80px rgba(0, 6, 18, 0.32);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
 }
 
 .hero-panel {
@@ -146,48 +125,88 @@ a {
   overflow: hidden;
 }
 
-.hero-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(255, 138, 61, 0.18), transparent 28%),
-    radial-gradient(circle at 0% 100%, rgba(102, 215, 255, 0.18), transparent 26%);
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-.hero-panel::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(102, 215, 255, 0.28), rgba(255, 138, 61, 0.24), transparent 86%);
-}
-
 .metric-chip {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(18px);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
 }
 
 .course-card {
   position: relative;
-  overflow: hidden;
-}
-
-.course-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(102, 215, 255, 0.4), rgba(255, 138, 61, 0.4), transparent 90%);
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 .course-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 34px 110px rgba(0, 6, 18, 0.48);
+  box-shadow: var(--shadow-md);
+  border-color: var(--line-strong);
 }
+
+/* ── Status Chips ───────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.chip-muted {
+  background: var(--surface-strong);
+  color: var(--muted);
+}
+
+.chip-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.chip-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.chip-accent {
+  background: rgba(29, 185, 84, 0.1);
+  color: var(--accent);
+}
+
+/* ── Feedback Banners ───────────────────────────── */
+
+.banner-danger {
+  border-radius: var(--radius);
+  border: 1px solid var(--danger-soft);
+  background: var(--danger-soft);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+.banner-warning {
+  border-radius: var(--radius);
+  border: 1px solid var(--warning-soft);
+  background: var(--warning-soft);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--warning);
+}
+
+.banner-info {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* ── Rich HTML ──────────────────────────────────── */
 
 .rich-html {
   color: inherit;
@@ -237,7 +256,7 @@ a {
 .rich-html video {
   display: block;
   max-width: 100%;
-  border-radius: 1rem;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -245,34 +264,90 @@ a {
   width: 100%;
   border-collapse: collapse;
   overflow: hidden;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
 }
 
 .rich-html th,
 .rich-html td {
-  border: 1px solid rgba(150, 185, 255, 0.12);
+  border: 1px solid var(--line);
   padding: 0.7rem 0.85rem;
   text-align: left;
   vertical-align: top;
 }
 
 .rich-html th {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-strong);
+  font-weight: 600;
 }
 
 .rich-html blockquote {
-  border-left: 3px solid rgba(102, 215, 255, 0.32);
+  border-left: 2px solid var(--line-strong);
   padding-left: 1rem;
   color: var(--muted);
 }
 
+.quiz-rendered {
+  color: inherit;
+}
+
+.quiz-rendered > :first-child {
+  margin-top: 0;
+}
+
+.quiz-rendered > :last-child {
+  margin-bottom: 0;
+}
+
+.quiz-rendered p,
+.quiz-rendered ul,
+.quiz-rendered ol,
+.quiz-rendered table,
+.quiz-rendered fieldset {
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.quiz-rendered input:not([type="radio"]):not([type="checkbox"]),
+.quiz-rendered textarea,
+.quiz-rendered select {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--foreground);
+  padding: 0.625rem 0.75rem;
+  font: inherit;
+}
+
+.quiz-rendered textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.quiz-rendered input[type="radio"],
+.quiz-rendered input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.quiz-rendered label {
+  color: var(--foreground);
+}
+
+.quiz-rendered fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+/* ── Animations ─────────────────────────────────── */
+
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -280,5 +355,5 @@ a {
 }
 
 .animate-rise-in {
-  animation: rise-in 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: rise-in 0.4s ease-out both;
 }

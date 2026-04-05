@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { ForumReplyForm } from "@/app/components/forum-reply-form";
 import { RichHtml } from "@/app/components/rich-html";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
-import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { getForumPostingWindow } from "@/lib/forum-posting";
@@ -18,9 +16,12 @@ import {
   getUserCourses,
   isAuthenticationError,
   isAccessException,
+  resolveUserAccessProfile,
+  type MoodleCourseAccessProfile,
   viewForum,
   viewForumDiscussion,
 } from "@/lib/moodle";
+import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type ForumDiscussionPageProps = {
@@ -79,6 +80,7 @@ export default async function ForumDiscussionPage({
   let forumModule:
     | Awaited<ReturnType<typeof getCourseContents>>[number]["modules"][number]
     | null = null;
+  let courseAccess: MoodleCourseAccessProfile | null = null;
 
   try {
     courses = await getUserCourses(session.token, session.userId);
@@ -166,11 +168,18 @@ export default async function ForumDiscussionPage({
 
   if (forum && !errorMessage) {
     try {
-      const courseContents = await getCourseContents(session.token, forum.courseId);
+      const [courseContents, accessProfile] = await Promise.all([
+        getCourseContents(session.token, forum.courseId),
+        resolveUserAccessProfile(session.token, session.userId).catch(() => null),
+      ]);
       forumModule =
         courseContents
           .flatMap((section) => section.modules)
           .find((module) => module.id === forum.courseModuleId) || null;
+      courseAccess =
+        accessProfile?.courseCapabilities.find(
+          (course) => course.courseId === forum.courseId
+        ) || null;
     } catch (error) {
       logger.warn("Forum discussion module metadata load failed", {
         userId: session.userId,
@@ -191,116 +200,126 @@ export default async function ForumDiscussionPage({
     ? `/foros/${parsedForumId}/discusiones/${parsedDiscussionId}?courseId=${resolvedSearchParams.courseId}`
     : `/foros/${parsedForumId}/discusiones/${parsedDiscussionId}`;
   const course = forum ? courses.find((item) => item.id === forum.courseId) : null;
+  const effectiveCourseAccess: MoodleCourseAccessProfile | null = forum
+    ? courseAccess || {
+        courseId: forum.courseId,
+        fullname: course?.fullname || "Curso",
+        shortname: course?.shortname || undefined,
+        summary: course?.summary || undefined,
+        roleBucket: "student",
+        roles: [],
+        canTeach: false,
+        canEdit: false,
+        canManageCourse: false,
+        canManageParticipants: false,
+        canViewGrades: true,
+        canViewReports: false,
+        adminOptions: {},
+        navigationOptions: {},
+      }
+    : null;
 
   return (
-    <main className="grain-overlay relative flex min-h-screen flex-1 overflow-x-hidden px-5 py-6 md:px-8 md:py-8">
-      <div className="ambient-orb ambient-orb-white left-[-6rem] top-[-2rem] h-52 w-52 md:h-72 md:w-72" />
-      <div className="ambient-orb ambient-orb-blue right-[-8rem] top-12 h-72 w-72 md:h-[28rem] md:w-[28rem]" />
-
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
-          sectionLabel="Discusión"
-          actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={baseForumHref}>Volver al foro</Link>
-            </Button>
-          }
+          breadcrumbs={[
+            { label: "Mis cursos", href: "/mis-cursos" },
+            ...(course ? [{ label: course.fullname, href: `/mis-cursos/${course.id}` }] : []),
+            ...(forum ? [{ label: forum.name, href: baseForumHref }] : []),
+            { label: discussion?.title ?? "Discusión" },
+          ]}
         />
 
-        <Card className="hero-panel rounded-[2rem]">
-          <CardContent className="relative z-10 px-6 py-8 md:px-8">
-            <div className="max-w-4xl">
-              {course ? (
-                <p className="text-[0.72rem] font-semibold tracking-[0.28em] text-[var(--color-accent-soft)] uppercase">
-                  {course.fullname}
-                </p>
-              ) : null}
-              <h1 className="display-face mt-4 text-balance text-5xl leading-[0.94] text-[var(--color-foreground)] md:text-6xl">
-                {discussion?.title || "Discusión"}
-              </h1>
-              {forum ? (
-                <p className="mt-4 text-sm leading-8 text-[var(--color-muted)]">
-                  {forum.name}
-                </p>
-              ) : null}
+        <div>
+          {course ? (
+            <p className="mb-1 text-sm text-[var(--color-muted)]">
+              {course.fullname}
+            </p>
+          ) : null}
+          {effectiveCourseAccess ? (
+            <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${getCourseRoleTone(effectiveCourseAccess.roleBucket)}`}>
+              {getCourseRoleLabel(effectiveCourseAccess.roleBucket)}
             </div>
-          </CardContent>
-        </Card>
+          ) : null}
+          <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
+            {discussion?.title || "Discusión"}
+          </h1>
+          {forum ? (
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              {forum.name}
+            </p>
+          ) : null}
+          {effectiveCourseAccess ? (
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-muted)]">
+              {effectiveCourseAccess.roleBucket === "student"
+                ? "Esta vista está orientada a leer y responder dentro de la discusión."
+                : "Esta vista refleja tu rol real en el curso mientras participas o revisas la discusión."}
+            </p>
+          ) : null}
+        </div>
 
         {errorMessage ? (
-          <Card className="rounded-[1.5rem] border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)]">
-            <CardContent className="px-6 py-5 text-sm leading-7 text-[var(--color-danger)]">
-              <p className="font-semibold">
-                {expiredSession
-                  ? "La sesión ya no es válida."
-                  : "No se pudo cargar la discusión."}
-              </p>
-              <p className="mt-1 opacity-80">{errorMessage}</p>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
+            {expiredSession
+              ? "La sesión ya no es válida."
+              : "No se pudo cargar la discusión."}
+          </div>
         ) : null}
 
         {postingWindow.cutoffDateReached ? (
-          <Card className="rounded-[1.5rem] border-[rgba(255,191,144,0.24)] bg-[rgba(255,191,144,0.08)]">
-            <CardContent className="px-6 py-5 text-sm leading-7 text-[var(--color-accent-soft)]">
-              <p className="font-semibold">La publicación está cerrada.</p>
-              <p className="mt-1 opacity-80">
-                Puedes seguir consultando la discusión.
-                {postingWindow.cutoffDate
-                  ? ` La fecha límite fue el ${new Intl.DateTimeFormat("es-ES", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(postingWindow.cutoffDate * 1000))}.`
-                  : ""}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-[var(--color-foreground)]/10 bg-[var(--color-foreground)]/[0.03] px-4 py-3 text-sm text-[var(--color-muted)]">
+            <p className="font-medium">La publicación está cerrada.</p>
+            <p className="mt-0.5">
+              Puedes seguir consultando la discusión.
+              {postingWindow.cutoffDate
+                ? ` La fecha límite fue el ${new Intl.DateTimeFormat("es-ES", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(postingWindow.cutoffDate * 1000))}.`
+                : ""}
+            </p>
+          </div>
         ) : null}
 
         {postingWindow.isPastDueButOpen ? (
-          <Card className="rounded-[1.5rem] border-[rgba(255,191,144,0.24)] bg-[rgba(255,191,144,0.08)]">
-            <CardContent className="px-6 py-5 text-sm leading-7 text-[var(--color-accent-soft)]">
-              <p className="font-semibold">La fecha de entrega ya ha pasado.</p>
-              <p className="mt-1 opacity-80">
-                Aun puedes responder en esta discusión
-                {postingWindow.cutoffDate
-                  ? ` hasta la fecha límite: ${new Intl.DateTimeFormat("es-ES", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(postingWindow.cutoffDate * 1000))}.`
-                  : "."}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-[var(--color-foreground)]/10 bg-[var(--color-foreground)]/[0.03] px-4 py-3 text-sm text-[var(--color-muted)]">
+            <p className="font-medium">La fecha de entrega ya ha pasado.</p>
+            <p className="mt-0.5">
+              Aun puedes responder en esta discusión
+              {postingWindow.cutoffDate
+                ? ` hasta la fecha límite: ${new Intl.DateTimeFormat("es-ES", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(postingWindow.cutoffDate * 1000))}.`
+                : "."}
+            </p>
+          </div>
         ) : null}
 
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-3">
           {posts.length > 0 ? (
-            posts.map((post, index) => (
-              <Card
-                key={post.id}
-                className="animate-rise-in rounded-[1.7rem]"
-                style={{ animationDelay: `${index * 45}ms` }}
-              >
-                <CardContent className="px-6 py-6">
-                  <div className="flex flex-col gap-5">
-                    <div className="flex items-start gap-4">
-                      <Avatar className="h-12 w-12">
+            posts.map((post) => (
+              <Card key={post.id} className="rounded-xl">
+                <CardContent className="px-5 py-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-9 w-9">
                         {post.authorPictureUrl ? (
                           <AvatarImage
                             src={getMoodleMediaProxyUrl(post.authorPictureUrl)}
                             alt={post.authorName || "Usuario"}
                           />
                         ) : null}
-                        <AvatarFallback>{getInitials(post.authorName)}</AvatarFallback>
+                        <AvatarFallback className="text-xs">{getInitials(post.authorName)}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-[var(--color-foreground)]">
+                        <p className="text-sm font-medium text-[var(--color-foreground)]">
                           {post.authorName || "Usuario"}
                         </p>
-                        <h2 className="mt-1 text-xl font-semibold text-[var(--color-foreground)]">
+                        <h2 className="mt-0.5 text-base font-semibold text-[var(--color-foreground)]">
                           {post.subject}
                         </h2>
                       </div>
@@ -311,7 +330,7 @@ export default async function ForumDiscussionPage({
                         <Separator />
                         <RichHtml
                           html={post.message}
-                          className="text-sm leading-8 text-[var(--color-muted)]"
+                          className="text-sm leading-relaxed text-[var(--color-muted)]"
                         />
                       </>
                     ) : null}
@@ -332,18 +351,11 @@ export default async function ForumDiscussionPage({
                 </CardContent>
               </Card>
             ))
-          ) : (
-            <Card className="hero-panel rounded-[1.7rem]">
-              <CardContent className="px-8 py-10">
-                <p className="text-[0.72rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                  Sin mensajes
-                </p>
-                <h2 className="display-face mt-4 text-4xl text-[var(--color-foreground)]">
-                  Esta discusión está vacía.
-                </h2>
-              </CardContent>
-            </Card>
-          )}
+          ) : !errorMessage ? (
+            <p className="py-12 text-center text-sm text-[var(--color-muted)]">
+              Esta discusión está vacía.
+            </p>
+          ) : null}
         </section>
       </div>
     </main>

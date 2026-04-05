@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppTopbar } from "@/app/components/app-topbar";
 import { RichHtml } from "@/app/components/rich-html";
@@ -10,12 +9,17 @@ import { logger } from "@/lib/logger";
 import { getMoodleMediaProxyUrl } from "@/lib/moodle-media";
 import {
   getCourseContents,
+  getPagesByCourses,
   getUserCourses,
   isAuthenticationError,
+  resolveUserAccessProfile,
+  type MoodleCourseAccessProfile,
   type MoodleCourseModule,
   type MoodleModuleContent,
+  type MoodlePage,
   viewResource,
 } from "@/lib/moodle";
+import { getCourseRoleLabel, getCourseRoleTone } from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
 
 type ResourcePageProps = {
@@ -180,16 +184,13 @@ function ResourcePreview({
 }) {
   if (!proxiedUrl) {
     return (
-      <Card className="hero-panel rounded-[1.8rem]">
-        <CardContent className="px-8 py-10 text-center">
-          <p className="text-[0.72rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-            Vista previa no disponible
+      <Card className="rounded-xl">
+        <CardContent className="px-6 py-8 text-center">
+          <p className="text-sm text-[var(--color-muted)]">
+            Vista previa no disponible.
           </p>
-          <h2 className="display-face mt-4 text-4xl leading-tight text-[var(--color-foreground)]">
-            Este recurso no incluye un archivo embebible.
-          </h2>
           {resourceModule.url ? (
-            <Button asChild className="mt-6">
+            <Button asChild className="mt-4">
               <a href={resourceModule.url} target="_blank" rel="noreferrer">
                 Abrir recurso
               </a>
@@ -202,13 +203,13 @@ function ResourcePreview({
 
   if (resourceKind === "image") {
     return (
-      <div className="overflow-hidden rounded-[1.8rem] border border-white/8 bg-[rgba(7,12,22,0.88)] p-3 md:p-4">
+      <div className="overflow-hidden rounded-xl border border-[var(--color-muted)]/10 p-3 md:p-4">
         <Image
           src={proxiedUrl}
           alt={resourceModule.name}
           width={1600}
           height={1200}
-          className="max-h-[78vh] w-full rounded-[1.35rem] object-contain"
+          className="max-h-[78vh] w-full rounded-lg object-contain"
         />
       </div>
     );
@@ -216,12 +217,12 @@ function ResourcePreview({
 
   if (resourceKind === "video") {
     return (
-      <div className="overflow-hidden rounded-[1.8rem] border border-white/8 bg-[rgba(7,12,22,0.95)] p-2">
+      <div className="overflow-hidden rounded-xl border border-[var(--color-muted)]/10 p-2">
         <video
           controls
           preload="metadata"
           src={proxiedUrl}
-          className="min-h-[22rem] w-full rounded-[1.35rem] bg-black"
+          className="min-h-[22rem] w-full rounded-lg bg-black"
         />
       </div>
     );
@@ -229,7 +230,7 @@ function ResourcePreview({
 
   if (resourceKind === "audio") {
     return (
-      <Card className="rounded-[1.8rem]">
+      <Card className="rounded-xl">
         <CardContent className="flex min-h-[18rem] items-center justify-center px-6 py-8">
           <audio controls preload="metadata" src={proxiedUrl} className="w-full max-w-2xl" />
         </CardContent>
@@ -239,26 +240,23 @@ function ResourcePreview({
 
   if (resourceKind === "document") {
     return (
-      <div className="overflow-hidden rounded-[1.8rem] border border-white/8 bg-[rgba(7,12,22,0.88)] p-2">
+      <div className="overflow-hidden rounded-xl border border-[var(--color-muted)]/10 p-2">
         <iframe
           src={proxiedUrl}
           title={resourceModule.name}
-          className="min-h-[78vh] w-full rounded-[1.35rem] border-0 bg-white"
+          className="min-h-[78vh] w-full rounded-lg border-0 bg-white"
         />
       </div>
     );
   }
 
   return (
-    <Card className="hero-panel rounded-[1.8rem]">
-      <CardContent className="px-8 py-10 text-center">
-        <p className="text-[0.72rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-          Vista previa no disponible
+    <Card className="rounded-xl">
+      <CardContent className="px-6 py-8 text-center">
+        <p className="text-sm text-[var(--color-muted)]">
+          Formato no soportado para vista previa.
         </p>
-        <h2 className="display-face mt-4 text-4xl leading-tight text-[var(--color-foreground)]">
-          Este formato no se puede incrustar en la app.
-        </h2>
-        <Button asChild className="mt-6">
+        <Button asChild className="mt-4">
           <a href={proxiedUrl} target="_blank" rel="noreferrer">
             Abrir archivo
           </a>
@@ -293,17 +291,32 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
   let errorMessage: string | null = null;
   let expiredSession = false;
   let resourceMatch: ReturnType<typeof findResourceModule> = null;
+  let pageData: MoodlePage | undefined;
+  let courseAccess: MoodleCourseAccessProfile | null = null;
 
   try {
-    [courses, sections] = await Promise.all([
+    const [coursesResult, sectionsResult, accessProfile] = await Promise.all([
       getUserCourses(session.token, session.userId),
       getCourseContents(session.token, parsedCourseId),
+      resolveUserAccessProfile(session.token, session.userId).catch(() => null),
     ]);
+
+    courses = coursesResult;
+    sections = sectionsResult;
+    courseAccess =
+      accessProfile?.courseCapabilities.find(
+        (course) => course.courseId === parsedCourseId
+      ) || null;
 
     resourceMatch = findResourceModule(sections, parsedModuleId);
 
     if (resourceMatch?.module?.modname === "resource" && resourceMatch.module.instance) {
       await viewResource(session.token, resourceMatch.module.instance);
+    }
+
+    if (resourceMatch?.module?.modname === "page" && resourceMatch.module.instance) {
+      const pages = await getPagesByCourses(session.token, [parsedCourseId]).catch(() => []);
+      pageData = pages.find((p) => p.id === resourceMatch!.module.instance);
     }
   } catch (error) {
     expiredSession = isAuthenticationError(error);
@@ -316,103 +329,171 @@ export default async function ResourcePage({ params }: ResourcePageProps) {
     errorMessage = "No se pudo cargar el recurso.";
   }
 
+  const SUPPORTED_MODNAMES = ["resource", "folder", "page"];
   const course = courses.find((item) => item.id === parsedCourseId);
   const resourceModule = resourceMatch?.module;
-  const content = pickPrimaryContent(resourceModule);
-  const proxiedUrl = getMoodleMediaProxyUrl(content?.fileurl);
+  const isFolder = resourceModule?.modname === "folder";
+  const isPage = resourceModule?.modname === "page";
+  const content = !isFolder && !isPage ? pickPrimaryContent(resourceModule) : undefined;
+  const proxiedUrl = content ? getMoodleMediaProxyUrl(content.fileurl) : undefined;
   const resourceKind = getResourceKind(content);
   const mimeLabel = getMimeLabel(content);
+  const effectiveCourseAccess: MoodleCourseAccessProfile =
+    courseAccess || {
+      courseId: parsedCourseId,
+      fullname: course?.fullname || "Curso",
+      shortname: course?.shortname || undefined,
+      summary: course?.summary || undefined,
+      roleBucket: "student",
+      roles: [],
+      canTeach: false,
+      canEdit: false,
+      canManageCourse: false,
+      canManageParticipants: false,
+      canViewGrades: true,
+      canViewReports: false,
+      adminOptions: {},
+      navigationOptions: {},
+    };
 
   if (
-    (!course || !resourceModule || resourceModule.modname !== "resource") &&
+    (!course || !resourceModule || !SUPPORTED_MODNAMES.includes(resourceModule.modname)) &&
     !errorMessage
   ) {
     notFound();
   }
 
   return (
-    <main className="grain-overlay relative flex min-h-screen flex-1 overflow-x-hidden px-5 py-6 md:px-8 md:py-8">
-      <div className="ambient-orb ambient-orb-white left-[-6rem] top-[-2rem] h-52 w-52 md:h-72 md:w-72" />
-      <div className="ambient-orb ambient-orb-blue right-[-8rem] top-12 h-72 w-72 md:h-[28rem] md:w-[28rem]" />
-
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         <AppTopbar
           fullName={session.fullName}
           userPictureUrl={session.userPictureUrl}
-          sectionLabel="Recurso"
-          actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/mis-cursos/${parsedCourseId}`}>Volver al curso</Link>
-            </Button>
-          }
+          breadcrumbs={[
+            { label: "Mis cursos", href: "/mis-cursos" },
+            { label: course?.fullname ?? "Curso", href: `/mis-cursos/${parsedCourseId}` },
+            { label: resourceModule?.name ?? "Recurso" },
+          ]}
         />
 
-        <Card className="hero-panel rounded-[2rem]">
-          <CardContent className="relative z-10 px-6 py-8 md:px-8">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-4xl">
-                {course ? (
-                  <p className="text-[0.72rem] font-semibold tracking-[0.28em] text-[var(--color-accent-soft)] uppercase">
-                    {course.fullname}
-                  </p>
-                ) : null}
-                <h1 className="display-face mt-4 text-balance text-5xl leading-[0.94] text-[var(--color-foreground)] md:text-6xl">
-                  {resourceModule?.name || "Recurso"}
-                </h1>
-                {resourceModule?.description ? (
-                  <>
-                    <Separator className="my-5 max-w-xl" />
-                    <RichHtml
-                      html={resourceModule.description}
-                      className="max-w-3xl text-sm leading-8 text-[var(--color-muted)]"
-                    />
-                  </>
-                ) : null}
-              </div>
+        <div className="flex flex-col gap-1">
+          {course ? (
+            <p className="text-sm text-[var(--color-muted)]">
+              {course.fullname}
+            </p>
+          ) : null}
+          <div className={`mb-2 inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${getCourseRoleTone(effectiveCourseAccess.roleBucket)}`}>
+            {getCourseRoleLabel(effectiveCourseAccess.roleBucket)}
+          </div>
+          <h1 className="text-2xl font-semibold text-[var(--color-foreground)]">
+            {resourceModule?.name || "Recurso"}
+          </h1>
+          {resourceModule?.description ? (
+            <RichHtml
+              html={resourceModule.description}
+              className="mt-2 max-w-3xl text-sm leading-7 text-[var(--color-muted)]"
+            />
+          ) : null}
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-muted)]">
+            {effectiveCourseAccess.roleBucket === "student"
+              ? "Esta vista está orientada a consultar o descargar el recurso."
+              : "Esta vista refleja tu rol real en el curso mientras revisas los recursos disponibles."}
+          </p>
+        </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[18rem] lg:grid-cols-1">
-                {mimeLabel ? (
-                  <div className="metric-chip rounded-[1.2rem] px-4 py-4">
-                    <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                      Formato
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-[var(--color-foreground)]">
-                      {mimeLabel}
-                    </p>
-                  </div>
-                ) : null}
-                {resourceMatch?.section ? (
-                  <div className="metric-chip rounded-[1.2rem] px-4 py-4">
-                    <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                      Sección
-                    </p>
-                    <p className="mt-2 text-sm text-[var(--color-foreground)]">
-                      {resourceMatch.section.name}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap gap-4 text-sm">
+          {isFolder ? (
+            <p className="text-[var(--color-muted)]">
+              Archivos: <span className="font-medium text-[var(--color-foreground)]">{resourceModule?.contents.filter((c) => c.filename && c.filename !== ".").length ?? 0}</span>
+            </p>
+          ) : isPage ? (
+            <p className="text-[var(--color-muted)]">
+              Tipo: <span className="font-medium text-[var(--color-foreground)]">Página</span>
+            </p>
+          ) : mimeLabel ? (
+            <p className="text-[var(--color-muted)]">
+              Formato: <span className="font-medium text-[var(--color-foreground)]">{mimeLabel}</span>
+            </p>
+          ) : null}
+          {resourceMatch?.section ? (
+            <p className="text-[var(--color-muted)]">
+              Sección: <span className="font-medium text-[var(--color-foreground)]">{resourceMatch.section.name}</span>
+            </p>
+          ) : null}
+        </div>
 
         {errorMessage ? (
-          <Card className="rounded-[1.5rem] border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)]">
-            <CardContent className="px-6 py-5 text-sm leading-7 text-[var(--color-danger)]">
-              <p className="font-semibold">
-                {expiredSession
-                  ? "La sesión ya no es válida."
-                  : "No se pudo cargar el recurso."}
-              </p>
-              <p className="mt-1 opacity-80">{errorMessage}</p>
+          <div className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
+            {expiredSession
+              ? "La sesión ya no es válida."
+              : errorMessage}
+          </div>
+        ) : null}
+
+        {resourceModule && isPage && pageData?.content ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <p className="mb-3 text-xs font-medium text-[var(--color-muted)]">Contenido</p>
+              <Separator className="mb-4" />
+              <RichHtml
+                html={pageData.content}
+                className="text-sm leading-7 text-[var(--color-muted)]"
+              />
             </CardContent>
           </Card>
         ) : null}
 
-        {resourceModule ? (
+        {resourceModule && isFolder ? (
+          <Card className="rounded-xl">
+            <CardContent className="px-5 py-5 md:px-6">
+              <p className="mb-3 text-xs font-medium text-[var(--color-muted)]">
+                Archivos ({resourceModule.contents.filter((c) => c.filename && c.filename !== ".").length})
+              </p>
+              <Separator className="mb-4" />
+              <div className="flex flex-col gap-2">
+                {resourceModule.contents
+                  .filter((c) => c.fileurl && c.filename && c.filename !== ".")
+                  .map((file, index) => {
+                    const fileUrl = getMoodleMediaProxyUrl(file.fileurl);
+                    const fileMime = inferMimeType(file);
+
+                    return (
+                      <div
+                        key={`${file.filename}-${index}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-muted)]/10 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-[var(--color-foreground)]">
+                            {file.filename}
+                          </p>
+                          {fileMime ? (
+                            <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                              {fileMime}
+                            </p>
+                          ) : null}
+                        </div>
+                        {fileUrl ? (
+                          <Button asChild size="sm" variant="outline">
+                            <a
+                              href={fileUrl}
+                              download={file.filename}
+                            >
+                              Descargar
+                            </a>
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {resourceModule && !isFolder && !isPage ? (
           <>
-            <Card className="rounded-[1.7rem]">
-              <CardContent className="grid gap-5 px-6 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <Card className="rounded-xl">
+              <CardContent className="grid gap-5 px-6 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div className="min-w-0">
                   {content?.filename && content.filename !== resourceModule.name ? (
                     <p className="truncate text-sm text-[var(--color-muted)]">

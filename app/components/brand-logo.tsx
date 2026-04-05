@@ -6,45 +6,61 @@ import { cn } from "@/lib/utils";
 type BrandLogoProps = {
   href?: string;
   compact?: boolean;
+  hideLabel?: boolean;
+  size?: "default" | "lg" | "xl";
   className?: string;
   priority?: boolean;
+};
+
+const sizeStyles = {
+  default: { container: "h-8 w-8 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)]", image: "p-1.5", sizes: "32px" },
+  lg: { container: "h-14 w-14", image: "", sizes: "56px" },
+  xl: { container: "h-32 w-32", image: "", sizes: "128px" },
 };
 
 export async function BrandLogo({
   href = "/",
   compact = false,
+  hideLabel = false,
+  size = "default",
   className,
   priority = false,
 }: BrandLogoProps) {
   const branding = await getMoodleBranding();
   const imageSrc = getMoodleBrandLogoProxyUrl(compact ? "compact" : "full");
+  const s = sizeStyles[size];
 
   return (
     <Link
       href={href}
       className={cn(
-        "group inline-flex items-center gap-3 rounded-[1.2rem] border border-white/10 bg-white/4 px-3 py-2 backdrop-blur-md transition hover:border-[var(--color-accent)]/40 hover:bg-white/7",
+        "group inline-flex items-center gap-2.5 transition",
         className
       )}
     >
-      <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[1rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.14),rgba(255,255,255,0.03))] shadow-[0_14px_34px_rgba(0,0,0,0.25)]">
+      <div
+        className={cn(
+          "relative flex shrink-0 items-center justify-center overflow-hidden",
+          s.container
+        )}
+      >
         <Image
           src={imageSrc}
           alt={branding.siteName}
           fill
           priority={priority}
-          sizes="44px"
-          className="object-contain p-2"
+          sizes={s.sizes}
+          className={cn("object-contain", s.image)}
         />
       </div>
-      <div className="min-w-0">
-        <p className="truncate text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-          Moodle
-        </p>
-        <p className="truncate text-sm font-medium text-[var(--color-foreground)]">
-          {branding.siteName}
-        </p>
-      </div>
+      <span
+        className={cn(
+          "text-sm font-medium text-[var(--color-foreground)]",
+          hideLabel && "sr-only"
+        )}
+      >
+        {branding.siteName}
+      </span>
     </Link>
   );
 }

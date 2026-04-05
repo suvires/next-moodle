@@ -1,65 +1,128 @@
+import Link from "next/link";
 import { ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
 import { BrandLogo } from "@/app/components/brand-logo";
 import { getMoodleMediaProxyUrl } from "@/lib/moodle-media";
+import { logoutAction } from "@/app/actions/auth";
+
+export type Crumb = { label: string; href?: string };
+export type AppTopbarNavItem = {
+  href: string;
+  label: string;
+  badgeCount?: number;
+};
 
 type AppTopbarProps = {
   fullName: string;
   userPictureUrl?: string;
+  /** Navigation hierarchy shown after the logo. Last item = current page (no link). */
+  breadcrumbs?: Crumb[];
+  /** Shorthand for a single breadcrumb with no link. */
   sectionLabel?: string;
+  /** Context-specific actions (e.g. Tareas / Calificaciones tabs for a course). */
   actions?: ReactNode;
+  unreadMessages?: number;
+  unreadNotifications?: number;
+  homeHref?: string;
+  navItems?: AppTopbarNavItem[];
 };
 
 function getInitials(name: string) {
   return (
-    name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "?"
+    name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "?"
   );
 }
 
 export function AppTopbar({
   fullName,
   userPictureUrl,
+  breadcrumbs,
   sectionLabel,
   actions,
+  unreadMessages = 0,
+  unreadNotifications = 0,
+  homeHref = "/mis-cursos",
+  navItems,
 }: AppTopbarProps) {
+  const crumbs: Crumb[] = breadcrumbs ?? (sectionLabel ? [{ label: sectionLabel }] : []);
+  const resolvedNavItems =
+    navItems ??
+    [
+      {
+        href: "/mensajes",
+        label: "Mensajes",
+        badgeCount: unreadMessages,
+      },
+      {
+        href: "/notificaciones",
+        label: "Notificaciones",
+        badgeCount: unreadNotifications,
+      },
+    ];
+
   return (
-    <header className="topbar-panel app-grid rounded-[1.7rem] px-4 py-4 md:px-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <BrandLogo href="/mis-cursos" compact priority />
-          {sectionLabel ? (
-            <span className="metric-chip rounded-full px-3 py-1 text-[0.66rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-              {sectionLabel}
+    <header className="topbar-panel sticky top-0 z-10 px-5 md:px-8">
+      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4">
+
+        {/* Left: logo + breadcrumb trail */}
+        <div className="flex min-w-0 items-center text-sm">
+          <BrandLogo href={homeHref} compact priority />
+          {crumbs.map((crumb, i) => (
+            <span key={i} className="flex min-w-0 items-center">
+              <span className="mx-2.5 shrink-0 text-[var(--line-strong)]">/</span>
+              {crumb.href ? (
+                <Link
+                  href={crumb.href}
+                  className="shrink-0 text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className="truncate font-medium text-[var(--foreground)]">
+                  {crumb.label}
+                </span>
+              )}
             </span>
-          ) : null}
+          ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
-          {actions}
-          <div className="metric-chip flex items-center gap-3 rounded-[1rem] px-3 py-2">
-            <Avatar className="h-11 w-11">
-              {userPictureUrl ? (
-                <AvatarImage
-                  src={getMoodleMediaProxyUrl(userPictureUrl)}
-                  alt={fullName}
-                />
-              ) : null}
+        {/* Right: context actions + global nav + avatar */}
+        <div className="flex shrink-0 items-center gap-5 text-sm">
+          {actions && <div className="flex items-center gap-5">{actions}</div>}
+
+          <nav className="hidden items-center gap-5 md:flex">
+            {resolvedNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="relative text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                {item.label}
+                {item.badgeCount ? (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[0.6rem] font-bold text-white">
+                    {item.badgeCount}
+                  </span>
+                ) : null}
+              </Link>
+            ))}
+            <form action={logoutAction} className="inline">
+              <button
+                type="submit"
+                className="text-[var(--muted)] transition hover:text-[var(--foreground)]"
+              >
+                Salir
+              </button>
+            </form>
+          </nav>
+
+          <Link href="/perfil" className="shrink-0 transition hover:opacity-75">
+            <Avatar className="h-8 w-8">
+              {userPictureUrl && (
+                <AvatarImage src={getMoodleMediaProxyUrl(userPictureUrl)} alt={fullName} />
+              )}
               <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[var(--color-foreground)]">
-                {fullName}
-              </p>
-              <p className="truncate text-[0.72rem] text-[var(--color-muted)]">
-                Campus activo
-              </p>
-            </div>
-          </div>
+          </Link>
         </div>
       </div>
     </header>

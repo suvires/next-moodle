@@ -18,8 +18,8 @@ const scormPageBones = {
 
 export default function Loading() {
   return (
-    <main className="grain-overlay relative flex min-h-screen flex-1 overflow-x-hidden px-5 py-8 md:px-8">
-      <div className="mx-auto w-full max-w-6xl">
+    <main className="flex min-h-screen flex-1 px-5 py-6 md:px-8 md:py-8">
+      <div className="mx-auto w-full max-w-5xl">
         <Skeleton
           loading
           initialBones={scormPageBones}

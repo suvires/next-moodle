@@ -1,18 +1,222 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { logoutAction } from "@/app/actions/auth";
 import { AppTopbar } from "@/app/components/app-topbar";
-import { Button } from "@/app/components/ui/button";
-import { Card, CardContent } from "@/app/components/ui/card";
+import { ProgressBar } from "@/app/components/progress-bar";
 import { RichHtml } from "@/app/components/rich-html";
-import { Separator } from "@/app/components/ui/separator";
+import { Card, CardContent } from "@/app/components/ui/card";
 import { logger } from "@/lib/logger";
 import {
-  getUserCourses,
+  computeCourseProgress,
+  getActivitiesCompletionStatus,
+  getCourseGrades,
+  getRecentCourses,
+  getUnreadConversationsCount,
+  getUnreadNotificationCount,
+  getUpcomingEvents,
+  getUserBadges,
   getUsersById,
   isAuthenticationError,
+  resolveUserAccessProfile,
+  type MoodleAccessProfile,
+  type MoodleBadge,
+  type MoodleCalendarEvent,
+  type MoodleCourseAccessProfile,
+  type MoodleCourseGrade,
 } from "@/lib/moodle";
+import { getCourseRoleLabel } from "@/lib/course-roles";
 import { getSession } from "@/lib/session";
+
+function getRoleLabel(role: MoodleAccessProfile["primaryRole"]) {
+  switch (role) {
+    case "student":
+      return "Alumno";
+    case "teacher":
+      return "Profesor";
+    case "editing_teacher":
+      return "Profesor con edición";
+    case "course_manager":
+      return "Gestor de curso";
+    case "platform_manager":
+      return "Gestión de plataforma";
+    case "administrator":
+      return "Administrador";
+    case "authenticated_no_courses":
+    default:
+      return "Usuario autenticado";
+  }
+}
+
+function normalizeRoleChip(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function getRoleDescription(profile: MoodleAccessProfile) {
+  switch (profile.primaryRole) {
+    case "teacher":
+      return "Tienes visibilidad docente en al menos un curso, pero sin señales claras de edición.";
+    case "editing_teacher":
+      return "Moodle te concede docencia con edición en alguno de tus cursos.";
+    case "course_manager":
+      return "Tienes permisos de gestión a nivel de curso además de acceso docente.";
+    case "platform_manager":
+      return "Tu cuenta tiene señales de gestión elevadas en la portada o el contexto global.";
+    case "administrator":
+      return "Esta sesión tiene privilegios de administración del sitio.";
+    case "student":
+      return "Tu portada prioriza seguimiento académico, progreso y próximas fechas.";
+    case "authenticated_no_courses":
+    default:
+      return "La cuenta está autenticada, pero no tiene cursos visibles ahora mismo.";
+  }
+}
+
+function getRoleAccent(profile: MoodleAccessProfile) {
+  switch (profile.primaryRole) {
+    case "teacher":
+    case "editing_teacher":
+      return "text-[var(--accent)] bg-[var(--accent)]/10";
+    case "course_manager":
+    case "platform_manager":
+    case "administrator":
+      return "text-amber-700 bg-amber-500/15";
+    case "authenticated_no_courses":
+      return "text-[var(--muted)] bg-[var(--surface-strong)]";
+    case "student":
+    default:
+      return "text-emerald-700 bg-emerald-500/15";
+  }
+}
+
+function getRoleHeadline(profile: MoodleAccessProfile) {
+  switch (profile.primaryRole) {
+    case "teacher":
+      return "Portada docente";
+    case "editing_teacher":
+      return "Portada de edición";
+    case "course_manager":
+      return "Portada de gestión de curso";
+    case "platform_manager":
+      return "Portada de gestión de plataforma";
+    case "administrator":
+      return "Portada de administración";
+    case "authenticated_no_courses":
+      return "Portada personal";
+    case "student":
+    default:
+      return "Portada académica";
+  }
+}
+
+function getCourseRoleChips(course: MoodleCourseAccessProfile) {
+  const chips = [getCourseRoleLabel(course.roleBucket)];
+  const normalizedChips = new Set(chips.map(normalizeRoleChip));
+
+  for (const role of course.roles) {
+    if (!role.name) continue;
+    const normalizedRoleName = normalizeRoleChip(role.name);
+    if (
+      normalizedChips.has(normalizedRoleName) ||
+      (course.roleBucket === "teacher" &&
+        ["teacher", "noneditingteacher", "profesor", "docente"].includes(
+          normalizedRoleName
+        )) ||
+      (course.roleBucket === "editing_teacher" &&
+        [
+          "editingteacher",
+          "teacherediting",
+          "profesorconedicion",
+          "docenteconedicion",
+        ].includes(normalizedRoleName)) ||
+      (course.roleBucket === "course_manager" &&
+        ["manager", "coursemanager", "gestor", "gestordecurso"].includes(
+          normalizedRoleName
+        ))
+    ) {
+      continue;
+    }
+
+    chips.push(role.name);
+    normalizedChips.add(normalizedRoleName);
+  }
+
+  return chips;
+}
+
+function getQuickActionCards(params: {
+  accessProfile: MoodleAccessProfile;
+  primaryTeachingCourse?: MoodleCourseAccessProfile;
+  primaryManagedCourse?: MoodleCourseAccessProfile;
+}) {
+  const { accessProfile, primaryTeachingCourse, primaryManagedCourse } = params;
+  const cards = [
+    {
+      href: "/buscar",
+      title: "Buscar",
+      body: "Localiza contenidos, foros y materiales en todo el campus.",
+    },
+    {
+      href: "/calendario",
+      title: "Calendario",
+      body: "Revisa próximas fechas y actividad planificada.",
+    },
+    {
+      href: "/perfil",
+      title: "Perfil",
+      body: "Consulta tus datos y el resumen general de tu cuenta.",
+    },
+  ];
+
+  if (accessProfile.siteInfo.userCanManageOwnFiles) {
+    cards.push({
+      href: "/archivos",
+      title: "Archivos privados",
+      body: "Accede a tus documentos personales dentro de Moodle.",
+    });
+  } else {
+    cards.push({
+      href: "/ajustes",
+      title: "Ajustes",
+      body: "Gestiona preferencias personales y ajustes de tu cuenta.",
+    });
+  }
+
+  if (primaryTeachingCourse) {
+    cards.push(
+      {
+        href: `/mis-cursos/${primaryTeachingCourse.courseId}`,
+        title: "Curso docente principal",
+        body: `Entra a ${primaryTeachingCourse.fullname} con tu rol de ${getCourseRoleLabel(primaryTeachingCourse.roleBucket).toLowerCase()}.`,
+      },
+      {
+        href: `/mis-cursos/${primaryTeachingCourse.courseId}/tareas`,
+        title: "Tareas del curso",
+        body: "Abre el tablero de tareas del curso donde impartes docencia.",
+      }
+    );
+  }
+
+  if (primaryManagedCourse) {
+    cards.push({
+      href: `/mis-cursos/${primaryManagedCourse.courseId}/calificaciones`,
+      title: "Calificaciones",
+      body: `Accede rápido a las calificaciones de ${primaryManagedCourse.fullname}.`,
+    });
+  }
+
+  if (accessProfile.canManagePlatform || accessProfile.isAdministrator) {
+    cards.push({
+      href: "/catalogo",
+      title: "Catálogo",
+      body: "Comprueba la visibilidad pública de la oferta formativa.",
+    });
+  }
+
+  return cards.slice(0, 6);
+}
 
 export default async function MyCoursesPage() {
   const session = await getSession();
@@ -21,152 +225,604 @@ export default async function MyCoursesPage() {
     redirect("/");
   }
 
-  let courses = [] as Awaited<ReturnType<typeof getUserCourses>>;
   let errorMessage: string | null = null;
   let expiredSession = false;
   let currentUserPictureUrl = session.userPictureUrl;
+  const progressMap = new Map<number, { completed: number; total: number; percentage: number }>();
+  const gradesMap = new Map<number, MoodleCourseGrade>();
+  let upcomingEvents: MoodleCalendarEvent[] = [];
+  let unreadMessages = 0;
+  let unreadNotifications = 0;
+  let badges: MoodleBadge[] = [];
+  let recentCourses: Awaited<ReturnType<typeof getRecentCourses>> = [];
+  let accessProfile: MoodleAccessProfile = {
+    isAuthenticated: true,
+    hasCourses: false,
+    enrolledCourseCount: 0,
+    primaryRole: "authenticated_no_courses",
+    isAdministrator: false,
+    canManagePlatform: false,
+    canTeachAnyCourse: false,
+    canEditAnyCourse: false,
+    canManageAnyCourse: false,
+    siteInfo: {
+      userId: session.userId,
+      username: session.username,
+      fullName: session.fullName,
+      userPictureUrl: session.userPictureUrl,
+      userIsSiteAdmin: false,
+      userCanManageOwnFiles: false,
+      canUploadFiles: false,
+      canDownloadFiles: false,
+      functions: [],
+      advancedFeatures: [],
+    },
+    courseCapabilities: [],
+  };
 
   try {
-    courses = await getUserCourses(session.token, session.userId);
+    accessProfile = await resolveUserAccessProfile(session.token, session.userId);
+    currentUserPictureUrl =
+      accessProfile.siteInfo.userPictureUrl || currentUserPictureUrl;
+
+    const [progressResults, courseGrades, events, unreadCount, userBadges, notifCount, recentCoursesResult, userPictureResult] = await Promise.all([
+      Promise.allSettled(
+        accessProfile.courseCapabilities.map((course) =>
+          getActivitiesCompletionStatus(
+            session.token,
+            course.courseId,
+            session.userId
+          ).then((statuses) => ({
+            courseId: course.courseId,
+            progress: computeCourseProgress(statuses),
+          }))
+        )
+      ),
+      getCourseGrades(session.token, session.userId).catch(
+        () => [] as MoodleCourseGrade[]
+      ),
+      getUpcomingEvents(session.token).catch(() => [] as MoodleCalendarEvent[]),
+      getUnreadConversationsCount(session.token, session.userId).catch(() => 0),
+      getUserBadges(session.token, session.userId).catch(() => [] as MoodleBadge[]),
+      getUnreadNotificationCount(session.token, session.userId).catch(() => 0),
+      getRecentCourses(session.token, session.userId).catch(
+        () => [] as Awaited<ReturnType<typeof getRecentCourses>>
+      ),
+      !currentUserPictureUrl
+        ? getUsersById(session.token, [session.userId]).catch(() => new Map())
+        : Promise.resolve(new Map()),
+    ]);
 
     if (!currentUserPictureUrl) {
       currentUserPictureUrl =
-        (await getUsersById(session.token, [session.userId])).get(session.userId)
-          ?.pictureUrl || undefined;
+        userPictureResult.get(session.userId)?.pictureUrl || undefined;
+    }
+
+    upcomingEvents = events.slice(0, 5);
+    unreadMessages = unreadCount;
+    unreadNotifications = notifCount;
+    badges = userBadges;
+    recentCourses = recentCoursesResult;
+
+    for (const result of progressResults) {
+      if (result.status === "fulfilled") {
+        progressMap.set(result.value.courseId, result.value.progress);
+      }
+    }
+
+    for (const grade of courseGrades) {
+      gradesMap.set(grade.courseId, grade);
     }
   } catch (error) {
     expiredSession = isAuthenticationError(error);
-    logger.error("Courses dashboard load failed", {
-      userId: session.userId,
-      error,
-    });
-    errorMessage = "No se pudieron cargar tus cursos en este momento.";
+    logger.error("Adaptive dashboard load failed", { userId: session.userId, error });
+    errorMessage = "No se pudo resolver tu portada en este momento.";
   }
 
+  const courseCapabilities = [...accessProfile.courseCapabilities];
+
+  if (recentCourses.length > 0) {
+    const recentIds = new Map(
+      recentCourses.map((course, index) => [course.id, index] as const)
+    );
+
+    courseCapabilities.sort((a, b) => {
+      const aRank = recentIds.has(a.courseId) ? recentIds.get(a.courseId)! : 999;
+      const bRank = recentIds.has(b.courseId) ? recentIds.get(b.courseId)! : 999;
+      return aRank - bRank;
+    });
+  }
+
+  const teachingCourses = courseCapabilities.filter((course) => course.canTeach);
+  const editingCourses = courseCapabilities.filter(
+    (course) => course.roleBucket === "editing_teacher"
+  );
+  const managedCourses = courseCapabilities.filter(
+    (course) => course.roleBucket === "course_manager"
+  );
+  const teacherOnlyCourses = teachingCourses.filter(
+    (course) => course.roleBucket === "teacher"
+  );
+  const studentOnlyCourses = courseCapabilities.filter(
+    (course) => course.roleBucket === "student"
+  );
+  const quickActionCards = getQuickActionCards({
+    accessProfile,
+    primaryTeachingCourse: teachingCourses[0],
+    primaryManagedCourse: managedCourses[0] || teachingCourses[0],
+  });
+  const navItems = [
+    { href: "/catalogo", label: "Catálogo" },
+    { href: "/buscar", label: "Buscar" },
+    { href: "/calendario", label: "Calendario" },
+    { href: "/ajustes", label: "Ajustes" },
+    ...(accessProfile.siteInfo.userCanManageOwnFiles
+      ? [{ href: "/archivos", label: "Archivos" }]
+      : []),
+    {
+      href: "/mensajes",
+      label: "Mensajes",
+      badgeCount: unreadMessages,
+    },
+    {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      badgeCount: unreadNotifications,
+    },
+  ];
+
   return (
-    <main className="grain-overlay relative flex min-h-screen flex-1 overflow-x-hidden px-5 py-6 md:px-8 md:py-8">
-      <div className="ambient-orb ambient-orb-white left-[-6rem] top-[-2rem] h-52 w-52 md:h-72 md:w-72" />
-      <div className="ambient-orb ambient-orb-blue right-[-8rem] top-12 h-72 w-72 md:h-[28rem] md:w-[28rem]" />
+    <div className="flex min-h-screen flex-col">
+      <AppTopbar
+        fullName={session.fullName}
+        userPictureUrl={currentUserPictureUrl}
+        breadcrumbs={[{ label: "Inicio" }]}
+        navItems={navItems}
+      />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <AppTopbar
-          fullName={session.fullName}
-          userPictureUrl={currentUserPictureUrl}
-          sectionLabel="Panel"
-          actions={
-            <form action={logoutAction}>
-              <Button type="submit" variant="outline" size="sm">
-                Salir
-              </Button>
-            </form>
-          }
-        />
-
-        <Card className="hero-panel animate-rise-in rounded-[2rem]">
-          <CardContent className="relative z-10 grid gap-6 px-6 py-8 md:grid-cols-[minmax(0,1.3fr)_auto] md:px-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-5 py-8 md:px-8 md:py-10">
+        <section className="animate-rise-in rounded-[1.75rem] border border-[var(--line)] bg-[linear-gradient(135deg,_rgba(240,173,78,0.18),_transparent_48%),var(--surface)] px-6 py-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
-              <p className="text-[0.72rem] font-semibold tracking-[0.28em] text-[var(--color-accent-soft)] uppercase">
-                Mis cursos
-              </p>
-              <h1 className="display-face mt-4 text-balance text-5xl leading-[0.94] text-[var(--color-foreground)] md:text-6xl">
-                Todo tu espacio académico en una sola vista.
+              <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${getRoleAccent(accessProfile)}`}>
+                {getRoleLabel(accessProfile.primaryRole)}
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] md:text-4xl">
+                {getRoleHeadline(accessProfile)}
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-8 text-[var(--color-muted)] md:text-base">
-                Accede a cursos, foros, recursos y paquetes interactivos sin perderte en la
-                navegación original del campus.
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+                Hola, {session.fullName.split(" ")[0]}. {getRoleDescription(accessProfile)}
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 md:min-w-[18rem] md:grid-cols-1">
-              <div className="metric-chip rounded-[1.25rem] px-4 py-4">
-                <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                  Usuario
-                </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--color-foreground)]">
-                  {session.fullName}
-                </p>
-              </div>
-              <div className="metric-chip rounded-[1.25rem] px-4 py-4">
-                <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                  Cursos activos
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-[var(--color-foreground)]">
-                  {courses.length}
-                </p>
-              </div>
+            <div className="grid min-w-0 gap-3 sm:grid-cols-3 lg:min-w-[360px] lg:grid-cols-1 xl:grid-cols-3">
+              <Card className="border-[var(--line)] bg-[var(--surface-strong)]">
+                <CardContent className="space-y-1 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Cursos
+                  </p>
+                  <p className="text-2xl font-semibold text-[var(--foreground)]">
+                    {accessProfile.enrolledCourseCount}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-[var(--line)] bg-[var(--surface-strong)]">
+                <CardContent className="space-y-1 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Docencia
+                  </p>
+                  <p className="text-2xl font-semibold text-[var(--foreground)]">
+                    {teachingCourses.length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-[var(--line)] bg-[var(--surface-strong)]">
+                <CardContent className="space-y-1 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Gestión
+                  </p>
+                  <p className="text-2xl font-semibold text-[var(--foreground)]">
+                    {managedCourses.length +
+                      (accessProfile.canManagePlatform || accessProfile.isAdministrator
+                        ? 1
+                        : 0)}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {errorMessage ? (
-          <Card className="rounded-[1.5rem] border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)]">
-            <CardContent className="px-6 py-5 text-sm leading-7 text-[var(--color-danger)]">
-              <p className="font-semibold">
-                {expiredSession ? "La sesión ya no es válida." : "No se pudieron cargar los cursos."}
-              </p>
-              <p className="mt-1 opacity-80">{errorMessage}</p>
-              {expiredSession ? (
-                <p className="mt-1 opacity-80">Vuelve a iniciar sesión.</p>
-              ) : null}
-            </CardContent>
-          </Card>
+          <div className="banner-danger">
+            <p className="font-semibold">
+              {expiredSession
+                ? "La sesión ya no es válida."
+                : "No se pudo cargar tu portada adaptativa."}
+            </p>
+            <p className="mt-1 opacity-80">{errorMessage}</p>
+          </div>
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {courses.length > 0 ? (
-            courses.map((course, index) => (
-              <Card
-                key={course.id}
-                className="course-card animate-rise-in rounded-[1.8rem] transition duration-300"
-                style={{ animationDelay: `${index * 70}ms` }}
+          {quickActionCards.map((card) => (
+            <Link
+              key={card.href}
+              href={card.href}
+              className="animate-rise-in rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+            >
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {card.title}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                {card.body}
+              </p>
+            </Link>
+          ))}
+        </section>
+
+        {upcomingEvents.length > 0 ? (
+          <section className="animate-rise-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-[var(--foreground)]">
+                Próximas fechas
+              </h2>
+              <Link
+                href="/calendario"
+                className="text-sm text-[var(--muted)] transition hover:text-[var(--foreground)]"
               >
-                <CardContent className="h-full p-0">
-                  <Link href={`/mis-cursos/${course.id}`} className="flex h-full flex-col px-6 py-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[0.68rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                          {course.shortname && course.shortname !== course.fullname
-                            ? course.shortname
-                            : "Curso"}
-                        </p>
-                      </div>
+                Ver todo
+              </Link>
+            </div>
+            <div className="flex flex-col gap-2">
+              {upcomingEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[var(--foreground)]">
+                      {event.name}
+                    </p>
+                    {event.courseName ? (
+                      <p className="truncate text-sm text-[var(--muted)]">
+                        {event.courseName}
+                      </p>
+                    ) : null}
+                  </div>
+                  {event.timeStart ? (
+                    <p className="shrink-0 text-sm text-[var(--muted)]">
+                      {new Intl.DateTimeFormat("es-ES", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      }).format(new Date(event.timeStart * 1000))}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {badges.length > 0 ? (
+          <section className="animate-rise-in">
+            <h2 className="mb-4 text-lg font-bold text-[var(--foreground)]">
+              Insignias
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {badges.map((badge) => (
+                <div
+                  key={badge.id}
+                  className="flex shrink-0 items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2"
+                >
+                  {badge.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={badge.imageUrl}
+                      alt={badge.name}
+                      className="h-7 w-7 rounded-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)]/10">
+                      <span className="text-xs font-bold text-[var(--accent)]">
+                        {badge.name[0]}
+                      </span>
                     </div>
+                  )}
+                  <span className="text-sm font-medium text-[var(--foreground)]">
+                    {badge.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-                    <h2 className="display-face mt-6 text-3xl leading-tight text-[var(--color-foreground)]">
+        {teacherOnlyCourses.length > 0 ? (
+          <section className="animate-rise-in">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-[var(--foreground)]">
+                Docencia
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Cursos donde Moodle te asigna un rol docente sin edición.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {teacherOnlyCourses.map((course) => (
+                <Link
+                  key={`teacher-${course.courseId}`}
+                  href={`/mis-cursos/${course.courseId}`}
+                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getCourseRoleChips(course).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-[var(--surface-strong)] px-3 py-1 text-xs font-medium text-[var(--muted)]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
+                    {course.fullname}
+                  </h3>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    Abre el curso para seguir la actividad, consultar tareas y revisar calificaciones.
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {editingCourses.length > 0 ? (
+          <section className="animate-rise-in">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-[var(--foreground)]">
+                Cursos con edición
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Cursos donde tu rol incluye edición dentro del propio curso.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {editingCourses.map((course) => (
+                <Link
+                  key={`editing-${course.courseId}`}
+                  href={`/mis-cursos/${course.courseId}`}
+                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getCourseRoleChips(course).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-[var(--surface-strong)] px-3 py-1 text-xs font-medium text-[var(--muted)]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
+                    {course.fullname}
+                  </h3>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
+                      Detalle del curso
+                    </span>
+                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
+                      Tareas
+                    </span>
+                    <span className="rounded-full border border-[var(--line)] px-2.5 py-1">
+                      Calificaciones
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {managedCourses.length > 0 ||
+        accessProfile.canManagePlatform ||
+        accessProfile.isAdministrator ? (
+          <section className="animate-rise-in">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-[var(--foreground)]">
+                Gestión
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Secciones priorizadas para cuentas con capacidad de gestión de curso o plataforma.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {managedCourses.map((course) => (
+                  <Link
+                    key={`managed-${course.courseId}`}
+                    href={`/mis-cursos/${course.courseId}`}
+                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 transition hover:border-[var(--line-strong)] hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getCourseRoleChips(course).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-[var(--surface-strong)] px-3 py-1 text-xs font-medium text-[var(--muted)]"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
                       {course.fullname}
-                    </h2>
-
+                    </h3>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      Rol detectado en el curso: {getCourseRoleLabel(course.roleBucket)}.
+                    </p>
                     {course.summary ? (
-                      <>
-                        <Separator className="my-5" />
-                        <RichHtml
-                          html={course.summary}
-                          className="line-clamp-5 text-sm leading-7 text-[var(--color-muted)]"
-                        />
-                      </>
+                      <RichHtml
+                        html={course.summary}
+                        className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted)]"
+                      />
                     ) : (
-                      <p className="mt-5 text-sm leading-7 text-[var(--color-muted)]">
-                        Sin descripción visible.
+                      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                        Abre el curso para centralizar tareas, calificaciones y actividad.
                       </p>
                     )}
                   </Link>
-                </CardContent>
-              </Card>
-            ))
+              ))}
+
+              {accessProfile.canManagePlatform || accessProfile.isAdministrator ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium text-amber-800">
+                      {accessProfile.isAdministrator ? "Administrador" : "Gestión de plataforma"}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold leading-snug text-[var(--foreground)]">
+                    Acceso elevado detectado
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                    La app ya distingue este nivel de acceso. De momento las áreas más útiles aquí son búsqueda global, catálogo, calendario y revisión de cursos.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
+                      Buscar
+                    </span>
+                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
+                      Catálogo
+                    </span>
+                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
+                      Calendario
+                    </span>
+                    <span className="rounded-full border border-amber-500/25 px-2.5 py-1">
+                      Ajustes
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        <section>
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-[var(--foreground)]">
+              {accessProfile.hasCourses ? "Cursos visibles" : "Sin cursos visibles"}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {accessProfile.hasCourses
+                ? "La portada ordena primero los cursos recientes y conserva el contexto del rol detectado."
+                : "Si esperabas ver cursos aquí, revisa tu matriculación o los permisos que el token puede usar."}
+            </p>
+          </div>
+
+          {courseCapabilities.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {courseCapabilities.map((course, index) => {
+                const progress = progressMap.get(course.courseId);
+                const grade = gradesMap.get(course.courseId);
+
+                return (
+                  <Link
+                    key={course.courseId}
+                    href={`/mis-cursos/${course.courseId}`}
+                    className="course-card animate-rise-in group flex flex-col rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5"
+                    style={{ animationDelay: `${index * 60}ms` }}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {course.shortname &&
+                      course.shortname !== course.fullname ? (
+                        <span className="chip chip-muted">{course.shortname}</span>
+                      ) : null}
+                      {course.roleBucket !== "student" ? (
+                        <span
+                          key={course.roleBucket}
+                          className="rounded-full bg-[var(--surface-strong)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--muted)]"
+                        >
+                          {getCourseRoleLabel(course.roleBucket)}
+                        </span>
+                      ) : studentOnlyCourses.length !== courseCapabilities.length ? (
+                        <span
+                          key={`${course.courseId}-student`}
+                          className="rounded-full bg-[var(--surface-strong)] px-2.5 py-1 text-[0.7rem] font-medium text-[var(--muted)]"
+                        >
+                          Alumno
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <h3 className="mt-3 font-bold leading-snug text-[var(--foreground)]">
+                      {course.fullname}
+                    </h3>
+
+                    {progress && progress.total > 0 ? (
+                      <div className="mt-4">
+                        <div className="mb-1.5 flex items-center justify-between text-sm">
+                          <span className="text-[var(--muted)]">Progreso</span>
+                          <span className="font-semibold text-[var(--foreground)]">
+                            {progress.percentage}%
+                          </span>
+                        </div>
+                        <ProgressBar percentage={progress.percentage} />
+                      </div>
+                    ) : null}
+
+                    {grade?.grade ? (
+                      <p className="mt-3 text-sm text-[var(--muted)]">
+                        Nota:{" "}
+                        <span className="font-semibold text-[var(--accent)]">
+                          {grade.grade}
+                        </span>
+                      </p>
+                    ) : null}
+
+                    {course.summary ? (
+                      <RichHtml
+                        html={course.summary}
+                        className="mt-3 line-clamp-2 text-sm leading-relaxed text-[var(--muted)]"
+                      />
+                    ) : (
+                      <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                        Entra al curso para ver módulos, actividad reciente y
+                        acciones disponibles.
+                      </p>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           ) : (
-            <Card className="hero-panel col-span-full rounded-[1.8rem]">
-              <CardContent className="px-8 py-10">
-                <p className="text-[0.72rem] font-semibold tracking-[0.24em] text-[var(--color-accent-soft)] uppercase">
-                  Sin cursos
-                </p>
-                <h2 className="display-face mt-4 text-4xl leading-tight text-[var(--color-foreground)]">
-                  No hay cursos visibles para esta cuenta.
-                </h2>
-              </CardContent>
-            </Card>
+            <div className="rounded-[1.75rem] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-center">
+              <p className="text-base font-medium text-[var(--foreground)]">
+                No hay cursos visibles para esta cuenta.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                Puedes explorar el catálogo público o revisar si la cuenta debe
+                tener acceso a cursos, docencia o gestión.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/catalogo"
+                  className="rounded-full bg-[var(--foreground)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                >
+                  Ir al catálogo
+                </Link>
+                <Link
+                  href="/perfil"
+                  className="rounded-full border border-[var(--line-strong)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-strong)]"
+                >
+                  Ver perfil
+                </Link>
+              </div>
+            </div>
           )}
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

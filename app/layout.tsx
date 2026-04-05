@@ -3,10 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Campus",
-    template: "%s | Campus",
+    default: "Aula",
+    template: "%s | Aula",
   },
-  description: "Experiencia moderna para acceder a cursos, foros, recursos y SCORM de Moodle.",
+  description: "Portal académico.",
 };
 
 export default function RootLayout({

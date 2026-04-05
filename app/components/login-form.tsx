@@ -3,10 +3,6 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { loginAction } from "@/app/actions/auth";
-import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
-import { Separator } from "@/app/components/ui/separator";
 
 const initialLoginState = {
   error: null,
@@ -20,13 +16,13 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button
+    <button
       type="submit"
-      className="w-full"
       disabled={pending}
+      className="h-12 w-full rounded-full bg-[var(--accent)] text-base font-bold text-white transition hover:scale-[1.02] hover:bg-[var(--accent-soft)] active:scale-100 disabled:pointer-events-none disabled:opacity-40"
     >
-      {pending ? "Entrando..." : "Entrar"}
-    </Button>
+      {pending ? "Entrando\u2026" : "Entrar"}
+    </button>
   );
 }
 
@@ -35,47 +31,59 @@ export function LoginForm({ sessionExpired = false }: LoginFormProps) {
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
-      {sessionExpired ? (
-        <p className="rounded-[1rem] border border-[rgba(255,214,102,0.22)] bg-[rgba(255,214,102,0.08)] px-4 py-3 text-sm text-[var(--color-foreground)]">
-          Tu sesión ha caducado o ya no es válida. Vuelve a iniciar sesión para continuar.
+      {sessionExpired && (
+        <p className="rounded-lg bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted)]">
+          Tu sesión ha expirado. Inicia sesión de nuevo.
         </p>
-      ) : null}
+      )}
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="username">Usuario o email</Label>
-        <Input
+        <label htmlFor="username" className="text-sm font-bold text-[var(--color-foreground)]">
+          Usuario o email
+        </label>
+        <input
           id="username"
           type="text"
           name="username"
           autoComplete="username"
-          placeholder="Tu usuario o email"
+          placeholder="Usuario o email"
           required
+          className="h-12 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-4 text-base text-[var(--color-foreground)] outline-none transition placeholder:text-[var(--muted)] hover:border-[var(--foreground)] focus:border-[var(--foreground)] focus:ring-2 focus:ring-[var(--foreground)]/10"
         />
-        <p className="text-xs leading-6 text-[var(--color-muted)]">
-          El acceso por email depende de que tu Moodle también lo permita en el servicio de autenticación.
-        </p>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Contrasena</Label>
-        <Input
+        <label htmlFor="password" className="text-sm font-bold text-[var(--color-foreground)]">
+          Contraseña
+        </label>
+        <input
           id="password"
           type="password"
           name="password"
           autoComplete="current-password"
-          placeholder="••••••••"
+          placeholder="Contraseña"
           required
+          className="h-12 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-4 text-base text-[var(--color-foreground)] outline-none transition placeholder:text-[var(--muted)] hover:border-[var(--foreground)] focus:border-[var(--foreground)] focus:ring-2 focus:ring-[var(--foreground)]/10"
         />
       </div>
 
-      {state.error ? (
-        <p className="rounded-[1rem] border border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)] px-4 py-3 text-sm text-[var(--color-danger)]">
+      {state.error && (
+        <p className="text-sm text-[var(--danger)]">
           {state.error}
         </p>
-      ) : null}
+      )}
 
-      <Separator />
-      <SubmitButton />
+      <div className="mt-3">
+        <SubmitButton />
+      </div>
+
+      <hr className="border-[var(--line)]" />
+
+      <p className="text-center">
+        <a href="#" className="text-sm font-medium text-[var(--color-foreground)] underline underline-offset-2 hover:text-[var(--accent)]">
+          ¿Olvidaste tu contraseña?
+        </a>
+      </p>
     </form>
   );
 }

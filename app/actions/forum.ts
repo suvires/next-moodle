@@ -3,41 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logger } from "@/lib/logger";
+import { sanitizeReturnPath } from "@/lib/safe-redirect";
 import { addForumDiscussion, addForumReply, MoodleApiError } from "@/lib/moodle";
 import {
   clearSessionIfAuthenticationError,
   requireSession,
 } from "@/lib/session";
+import { parseRequiredNumber } from "./validation";
+import { toHtmlMessage } from "./formatting";
 
 export type ForumFormState = {
   error: string | null;
 };
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function toHtmlMessage(value: string) {
-  return escapeHtml(value)
-    .split(/\n{2,}/)
-    .map((paragraph) => `<p>${paragraph.replaceAll("\n", "<br>")}</p>`)
-    .join("");
-}
-
-function parseRequiredNumber(rawValue: FormDataEntryValue | null) {
-  const parsed = Number(rawValue);
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error("Identificador no válido.");
-  }
-
-  return parsed;
-}
 
 export async function createForumDiscussionAction(
   _previousState: ForumFormState,
@@ -48,7 +25,7 @@ export async function createForumDiscussionAction(
   const forumId = parseRequiredNumber(formData.get("forumId"));
   const subject = String(formData.get("subject") || "").trim();
   const message = String(formData.get("message") || "").trim();
-  const returnPath = String(formData.get("returnPath") || `/foros/${forumId}`);
+  const returnPath = sanitizeReturnPath(formData.get("returnPath") as string | null, `/foros/${forumId}`);
 
   if (!subject || !message) {
     return {
@@ -99,7 +76,7 @@ export async function createForumReplyAction(
   const postId = parseRequiredNumber(formData.get("postId"));
   const subject = String(formData.get("subject") || "").trim();
   const message = String(formData.get("message") || "").trim();
-  const returnPath = String(formData.get("returnPath") || "/mis-cursos");
+  const returnPath = sanitizeReturnPath(formData.get("returnPath") as string | null, "/mis-cursos");
 
   if (!message) {
     return {

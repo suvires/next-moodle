@@ -55,7 +55,7 @@ export function ForumReplyForm({
       </div>
 
       {state.error ? (
-        <p className="rounded-[1rem] border border-[rgba(255,124,124,0.24)] bg-[rgba(255,124,124,0.08)] px-4 py-3 text-sm text-[var(--color-danger)]">
+        <p className="rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-4 py-3 text-sm text-[var(--color-danger)]">
           {state.error}
         </p>
       ) : null}

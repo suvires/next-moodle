@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
+import { sanitizeReturnPath } from "@/lib/safe-redirect";
 import { updateActivityCompletionStatusManually, MoodleApiError } from "@/lib/moodle";
 import { clearSessionIfAuthenticationError, requireSession } from "@/lib/session";
 
@@ -28,7 +29,7 @@ export async function toggleManualCompletionAction(
 
   const courseModuleId = parseRequiredNumber(formData.get("courseModuleId"));
   const completed = String(formData.get("completed")) === "1";
-  const returnPath = String(formData.get("returnPath") || "/mis-cursos");
+  const returnPath = sanitizeReturnPath(formData.get("returnPath") as string | null, "/mis-cursos");
 
   try {
     await updateActivityCompletionStatusManually(session.token, courseModuleId, completed);

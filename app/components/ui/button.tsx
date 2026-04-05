@@ -4,22 +4,27 @@ import { cn } from "@/lib/utils";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   asChild?: boolean;
-  variant?: "default" | "outline" | "ghost";
-  size?: "default" | "sm";
+  variant?: "default" | "primary" | "outline" | "ghost" | "danger";
+  size?: "default" | "sm" | "lg";
 };
 
 const variantStyles: Record<NonNullable<ButtonProps["variant"]>, string> = {
   default:
-    "border border-[rgba(255,163,102,0.45)] bg-[linear-gradient(135deg,var(--color-accent),#ffb36f)] text-[#09111f] shadow-[0_18px_42px_rgba(255,138,61,0.22)] hover:-translate-y-0.5 hover:shadow-[0_22px_56px_rgba(255,138,61,0.3)]",
+    "bg-[var(--foreground)] text-white hover:opacity-90",
+  primary:
+    "bg-[var(--accent)] text-white hover:bg-[var(--accent-soft)]",
   outline:
-    "border border-white/10 bg-white/4 text-[var(--color-foreground)] hover:-translate-y-0.5 hover:border-[var(--color-accent)]/55 hover:bg-white/8",
+    "border border-[var(--line-strong)] text-[var(--foreground)] hover:bg-[var(--surface-strong)]",
   ghost:
-    "bg-transparent text-[var(--color-muted)] hover:text-[var(--color-foreground)]",
+    "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-strong)]",
+  danger:
+    "bg-[var(--danger)] text-white hover:opacity-90",
 };
 
 const sizeStyles: Record<NonNullable<ButtonProps["size"]>, string> = {
-  default: "min-h-12 px-5 text-[0.72rem] tracking-[0.22em]",
-  sm: "min-h-10 px-4 text-[0.66rem] tracking-[0.2em]",
+  sm: "h-8 px-3 text-sm rounded-lg",
+  default: "h-10 px-5 text-sm rounded-full",
+  lg: "h-12 px-6 text-base rounded-full",
 };
 
 export function Button({
@@ -34,7 +39,7 @@ export function Button({
   return (
     <Comp
       className={cn(
-        "inline-flex items-center justify-center rounded-[1rem] font-semibold uppercase transition duration-200 disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-wait disabled:border-white/8 disabled:bg-white/8 disabled:text-white/50",
+        "inline-flex items-center justify-center font-medium transition duration-150 disabled:pointer-events-none disabled:opacity-40",
         variantStyles[variant],
         sizeStyles[size],
         className
