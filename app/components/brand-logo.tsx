@@ -13,7 +13,7 @@ type BrandLogoProps = {
 };
 
 const sizeStyles = {
-  default: { container: "h-8 w-8 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)]", image: "p-1.5", sizes: "32px" },
+  default: { container: "h-8 w-8", image: "", sizes: "32px" },
   lg: { container: "h-14 w-14", image: "", sizes: "56px" },
   xl: { container: "h-32 w-32", image: "", sizes: "128px" },
 };
